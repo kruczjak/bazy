@@ -292,5 +292,57 @@ WHERE wr.canceled=true;;
 COMMENT ON VIEW public."view_canceled_WorkshopReservations" IS 'Show canceled WorkshopReservations (and their''s Workshop name)';
 -- ddl-end --
 
+-- object: public."view_popular_Conferences" | type: VIEW --
+-- DROP VIEW public."view_popular_Conferences";
+CREATE VIEW public."view_popular_Conferences"
+AS SELECT c.id, c.name, sum(cr."reservedSeats") as Popularity
+FROM "Conference" c
+INNER JOIN "ConfDay" cd on cd."id_Conference"=c.id
+INNER JOIN "ConfReservationAndConfDay" cracd on cracd."id_ConfDay"=cd.id
+INNER JOIN "ConfReservation" cr on cr.id=cracd."id_ConfReservation"
+WHERE cr.canceled = false
+GROUP BY c.id, c.name
+ORDER BY Popularity DESC;
+-- ddl-end --
+
+-- object: public."view_popular_Workshops" | type: VIEW --
+-- DROP VIEW public."view_popular_Workshops";
+CREATE VIEW public."view_popular_Workshops"
+AS SELECT w.id, w.name, sum(wr."reservedSeats") as Popularity
+FROM "Workshop" w
+INNER JOIN "WorkshopReservation" wr on wr."id_Workshop"=w.id
+WHERE wr.canceled = false
+GROUP BY w.id, w.name
+ORDER BY Popularity DESC;
+-- ddl-end --
+
+-- object: public."view_canceled_Workshops" | type: VIEW --
+-- DROP VIEW public."view_canceled_Workshops";
+CREATE VIEW public."view_canceled_Workshops"
+AS SELECT id, name FROM "Workshop"
+WHERE canceled = true;
+-- ddl-end --
+
+-- object: public."view_canceled_Conferences" | type: VIEW --
+-- DROP VIEW public."view_canceled_Conferences";
+CREATE VIEW public."view_canceled_Conferences"
+AS SELECT id, name FROM "Conference"
+WHERE canceled = true;
+-- ddl-end --
+
+-- object: public.view_companies | type: VIEW --
+-- DROP VIEW public.view_companies;
+CREATE VIEW public.view_companies
+AS SELECT id, name, login, email FROM "User"
+WHERE company=true;
+-- ddl-end --
+
+-- object: public.view_not_companies | type: VIEW --
+-- DROP VIEW public.view_not_companies;
+CREATE VIEW public.view_not_companies
+AS SELECT id, "firstName", "surName", login, email FROM "User"
+WHERE company=false;
+-- ddl-end --
+
 
 
