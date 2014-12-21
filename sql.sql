@@ -39,10 +39,16 @@ CREATE TABLE public."Conference"(
 	"startDate" date NOT NULL,
 	"endDate" date NOT NULL,
 	name varchar(30) NOT NULL,
-	CONSTRAINT "pk_Conference" PRIMARY KEY (id)
+	discount numeric DEFAULT 0,
+	canceled boolean DEFAULT false,
+	CONSTRAINT "pk_Conference" PRIMARY KEY (id),
+	CONSTRAINT check_discount CHECK (0<=discount AND discount>=1)
 
 );
 -- ddl-end --
+COMMENT ON CONSTRAINT check_discount ON public."Conference" IS 'Discount must be beetwen 0 to 1';
+-- ddl-end --
+
 -- object: public."ConfDay" | type: TABLE --
 -- DROP TABLE public."ConfDay";
 CREATE TABLE public."ConfDay"(
@@ -71,6 +77,7 @@ CREATE TABLE public."Price"(
 -- DROP TABLE public."Workshop";
 CREATE TABLE public."Workshop"(
 	id serial NOT NULL,
+	name varchar,
 	"startTime" time NOT NULL,
 	"endTime" time NOT NULL,
 	seats integer NOT NULL,
@@ -262,6 +269,28 @@ REFERENCES public."PeopleAndConfReservation" (id) MATCH FULL
 ON DELETE SET NULL ON UPDATE CASCADE;
 -- ddl-end --
 
+
+-- object: public."view_canceled_ConfReservation" | type: VIEW --
+-- DROP VIEW public."view_canceled_ConfReservation";
+CREATE VIEW public."view_canceled_ConfReservation"
+AS SELECT c.id as ConferenceID, c.name, cd.date, cr.id as ConfReservationID, cr."reservedSeats"
+FROM "ConfReservation" cr 
+INNER JOIN "ConfReservationAndConfDay" cracd on cr.id=cracd."id_ConfReservation"
+INNER JOIN "ConfDay" cd on cd.id=cracd."id_ConfDay"
+INNER JOIN "Conference" c on c.id=cd."id_Conference"
+WHERE cr.canceled=true;
+COMMENT ON VIEW public."view_canceled_ConfReservation" IS 'Show canceled ConfReservations (and it''s conference name)';
+-- ddl-end --
+
+-- object: public."view_canceled_WorkshopReservations" | type: VIEW --
+-- DROP VIEW public."view_canceled_WorkshopReservations";
+CREATE VIEW public."view_canceled_WorkshopReservations"
+AS SELECT w.id as WorkshopID, w.name, wr.id as WorkshopReservationID, wr."reservedSeats"
+FROM "WorkshopReservation" wr 
+INNER JOIN "Workshop" w on w.id=wr."id_Workshop"
+WHERE wr.canceled=true;;
+COMMENT ON VIEW public."view_canceled_WorkshopReservations" IS 'Show canceled WorkshopReservations (and their''s Workshop name)';
+-- ddl-end --
 
 
 
