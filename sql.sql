@@ -27,8 +27,10 @@ CREATE TABLE public."User"(
 	"surName" varchar(30),
 	login varchar(30) NOT NULL,
 	email varchar(40) NOT NULL,
+	password varchar NOT NULL,
 	CONSTRAINT "pk_User" PRIMARY KEY (id),
-	CONSTRAINT unique_login_email UNIQUE (login,email)
+	CONSTRAINT unique_login UNIQUE (login),
+	CONSTRAINT unique_email UNIQUE (email)
 
 );
 -- ddl-end --
@@ -81,6 +83,7 @@ CREATE TABLE public."Workshop"(
 	"startTime" time NOT NULL,
 	"endTime" time NOT NULL,
 	seats integer NOT NULL,
+	price numeric NOT NULL,
 	canceled boolean DEFAULT false,
 	"id_ConfDay" integer NOT NULL,
 	CONSTRAINT "pk_Workshop" PRIMARY KEY (id),
@@ -122,6 +125,7 @@ CREATE TABLE public."Payments"(
 CREATE TABLE public."ConfReservation"(
 	id serial NOT NULL,
 	"reservedSeats" integer NOT NULL,
+	"reservationDate" date DEFAULT CURRENT_DATE,
 	canceled boolean DEFAULT false,
 	"id_User" integer NOT NULL,
 	"id_Payments" integer,
@@ -241,7 +245,7 @@ CREATE TABLE public."PeopleAndConfReservation"(
 	id serial,
 	"studentCard" integer,
 	"id_People" integer NOT NULL,
-	"id_ConfReservation" integer NOT NULL,
+	"id_ConfReservationAndConfDay" integer NOT NULL,
 	CONSTRAINT "PandCR" PRIMARY KEY (id)
 
 );
@@ -250,14 +254,6 @@ CREATE TABLE public."PeopleAndConfReservation"(
 -- ALTER TABLE public."PeopleAndConfReservation" DROP CONSTRAINT "People_fk";
 ALTER TABLE public."PeopleAndConfReservation" ADD CONSTRAINT "People_fk" FOREIGN KEY ("id_People")
 REFERENCES public."People" (id) MATCH FULL
-ON DELETE RESTRICT ON UPDATE CASCADE;
--- ddl-end --
-
-
--- object: "ConfReservation_fk" | type: CONSTRAINT --
--- ALTER TABLE public."PeopleAndConfReservation" DROP CONSTRAINT "ConfReservation_fk";
-ALTER TABLE public."PeopleAndConfReservation" ADD CONSTRAINT "ConfReservation_fk" FOREIGN KEY ("id_ConfReservation")
-REFERENCES public."ConfReservation" (id) MATCH FULL
 ON DELETE RESTRICT ON UPDATE CASCADE;
 -- ddl-end --
 
@@ -342,6 +338,43 @@ WHERE company=true;
 CREATE VIEW public.view_not_companies
 AS SELECT id, "firstName", "surName", login, email FROM "User"
 WHERE company=false;
+-- ddl-end --
+
+-- object: "ConfReservationAndConfDay_fk" | type: CONSTRAINT --
+-- ALTER TABLE public."PeopleAndConfReservation" DROP CONSTRAINT "ConfReservationAndConfDay_fk";
+ALTER TABLE public."PeopleAndConfReservation" ADD CONSTRAINT "ConfReservationAndConfDay_fk" FOREIGN KEY ("id_ConfReservationAndConfDay")
+REFERENCES public."ConfReservationAndConfDay" (id) MATCH FULL
+ON DELETE RESTRICT ON UPDATE CASCADE;
+-- ddl-end --
+
+
+-- object: public.view_not_paid | type: VIEW --
+-- DROP VIEW public.view_not_paid;
+CREATE VIEW public.view_not_paid
+AS SELECT u.id "UserID", u.name "Name", cr.id "ConfReservationID", cr."reservedSeats", SUM(pa.value) "Paid so far", SUM(pr.value) "Price"
+FROM "Payments" pa
+INNER JOIN "ConfReservation" cr ON cr."id_Payments"=pa.id AND cr.canceled=false
+INNER JOIN "User" u ON u.id=cr."id_User" AND u.company=true
+INNER JOIN "ConfReservationAndConfDay" cracd ON cracd."id_ConfReservation"=cr.id
+INNER JOIN "ConfDay" cd ON cd.id=cracd."id_ConfDay"
+INNER JOIN "Price" pr ON cd.id=pr."id_ConfDay" AND pr.date = cr."reservationDate"
+INNER JOIN "Conference" c ON c.id=cd."id_Conference" AND c."startDate" > CURRENT_DATE + 14
+GROUP BY "UserID", "ConfReservationID", cr."reservedSeats", "Name"
+HAVING SUM(pa.value) < SUM(pr.value)
+
+UNION
+
+SELECT u.id "UserID", u."firstName" || ' ' || u."surName" "Name", cr.id "ConfReservationID", cr."reservedSeats", SUM(pa.value) "Paid so far", SUM(pr.value) "Price"
+FROM "Payments" pa
+INNER JOIN "ConfReservation" cr ON cr."id_Payments"=pa.id AND cr.canceled=false
+INNER JOIN "User" u ON u.id=cr."id_User" AND u.company=false
+INNER JOIN "ConfReservationAndConfDay" cracd ON cracd."id_ConfReservation"=cr.id
+INNER JOIN "ConfDay" cd ON cd.id=cracd."id_ConfDay"
+INNER JOIN "Price" pr ON cd.id=pr."id_ConfDay" AND pr.date = cr."reservationDate"
+INNER JOIN "Conference" c ON c.id=cd."id_Conference" AND c."startDate" > CURRENT_DATE + 14
+GROUP BY "UserID", "ConfReservationID", cr."reservedSeats", "Name"
+HAVING SUM(pa.value) < SUM(pr.value);
+COMMENT ON VIEW public.view_not_paid IS 'Show Users that haven''t paid yet. For company, display it''s name, for not company first name and last.';
 -- ddl-end --
 
 
