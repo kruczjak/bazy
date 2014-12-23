@@ -121,6 +121,7 @@ CREATE TABLE public."Payments"(
 	id serial NOT NULL,
 	timestamp timestamp NOT NULL DEFAULT now(),
 	value numeric NOT NULL,
+	"id_ConfReservation" integer NOT NULL,
 	CONSTRAINT "id_User" PRIMARY KEY (id),
 	CONSTRAINT positive_price CHECK (value > 0)
 
@@ -130,13 +131,9 @@ CREATE TABLE public."Payments"(
 -- DROP TABLE public."ConfReservation";
 CREATE TABLE public."ConfReservation"(
 	id serial NOT NULL,
-	reserved_seats integer NOT NULL,
-	reservation_date date DEFAULT CURRENT_DATE,
 	canceled boolean DEFAULT false,
 	"id_User" integer NOT NULL,
-	"id_Payments" integer,
-	CONSTRAINT "id_ConfReservation" PRIMARY KEY (id),
-	CONSTRAINT positive_reserved_seats CHECK ("reserved_seats" > 0)
+	CONSTRAINT "id_ConfReservation" PRIMARY KEY (id)
 
 );
 -- ddl-end --
@@ -154,21 +151,13 @@ CREATE TABLE public."WorkshopReservation"(
 	id serial NOT NULL,
 	reserved_seats integer NOT NULL,
 	canceled boolean,
-	"id_ConfReservation" integer NOT NULL,
 	"id_Workshop" integer NOT NULL,
+	"id_ConfDayReservation" integer NOT NULL,
 	CONSTRAINT "id_WorkshopReservation" PRIMARY KEY (id),
 	CONSTRAINT "positive_reservedSeats" CHECK ("reserved_seats" > 0)
 
 );
 -- ddl-end --
--- object: "ConfReservation_fk" | type: CONSTRAINT --
--- ALTER TABLE public."WorkshopReservation" DROP CONSTRAINT "ConfReservation_fk";
-ALTER TABLE public."WorkshopReservation" ADD CONSTRAINT "ConfReservation_fk" FOREIGN KEY ("id_ConfReservation")
-REFERENCES public."ConfReservation" (id) MATCH FULL
-ON DELETE RESTRICT ON UPDATE CASCADE;
--- ddl-end --
-
-
 -- object: "Workshop_fk" | type: CONSTRAINT --
 -- ALTER TABLE public."WorkshopReservation" DROP CONSTRAINT "Workshop_fk";
 ALTER TABLE public."WorkshopReservation" ADD CONSTRAINT "Workshop_fk" FOREIGN KEY ("id_Workshop")
@@ -185,14 +174,6 @@ ON DELETE RESTRICT ON UPDATE CASCADE;
 -- ddl-end --
 
 
--- object: "Payments_fk" | type: CONSTRAINT --
--- ALTER TABLE public."ConfReservation" DROP CONSTRAINT "Payments_fk";
-ALTER TABLE public."ConfReservation" ADD CONSTRAINT "Payments_fk" FOREIGN KEY ("id_Payments")
-REFERENCES public."Payments" (id) MATCH FULL
-ON DELETE SET NULL ON UPDATE CASCADE;
--- ddl-end --
-
-
 -- object: "ConfDay_fk" | type: CONSTRAINT --
 -- ALTER TABLE public."Workshop" DROP CONSTRAINT "ConfDay_fk";
 ALTER TABLE public."Workshop" ADD CONSTRAINT "ConfDay_fk" FOREIGN KEY ("id_ConfDay")
@@ -201,27 +182,30 @@ ON DELETE RESTRICT ON UPDATE CASCADE;
 -- ddl-end --
 
 
--- object: public."ConfReservationAndConfDay" | type: TABLE --
--- DROP TABLE public."ConfReservationAndConfDay";
-CREATE TABLE public."ConfReservationAndConfDay"(
+-- object: public."ConfDayReservation" | type: TABLE --
+-- DROP TABLE public."ConfDayReservation";
+CREATE TABLE public."ConfDayReservation"(
 	id serial NOT NULL,
 	"id_ConfReservation" integer NOT NULL,
 	"id_ConfDay" integer NOT NULL,
-	CONSTRAINT "pkCRandCD" PRIMARY KEY (id)
+	reserved_seats integer NOT NULL,
+	reservation_date date DEFAULT CURRENT_DATE,
+	CONSTRAINT "pkCRandCD" PRIMARY KEY (id),
+	CONSTRAINT positive_seats CHECK ("reserved_seats" > 0)
 
 );
 -- ddl-end --
 -- object: "ConfReservation_fk" | type: CONSTRAINT --
--- ALTER TABLE public."ConfReservationAndConfDay" DROP CONSTRAINT "ConfReservation_fk";
-ALTER TABLE public."ConfReservationAndConfDay" ADD CONSTRAINT "ConfReservation_fk" FOREIGN KEY ("id_ConfReservation")
+-- ALTER TABLE public."ConfDayReservation" DROP CONSTRAINT "ConfReservation_fk";
+ALTER TABLE public."ConfDayReservation" ADD CONSTRAINT "ConfReservation_fk" FOREIGN KEY ("id_ConfReservation")
 REFERENCES public."ConfReservation" (id) MATCH FULL
 ON DELETE RESTRICT ON UPDATE CASCADE;
 -- ddl-end --
 
 
 -- object: "ConfDay_fk" | type: CONSTRAINT --
--- ALTER TABLE public."ConfReservationAndConfDay" DROP CONSTRAINT "ConfDay_fk";
-ALTER TABLE public."ConfReservationAndConfDay" ADD CONSTRAINT "ConfDay_fk" FOREIGN KEY ("id_ConfDay")
+-- ALTER TABLE public."ConfDayReservation" DROP CONSTRAINT "ConfDay_fk";
+ALTER TABLE public."ConfDayReservation" ADD CONSTRAINT "ConfDay_fk" FOREIGN KEY ("id_ConfDay")
 REFERENCES public."ConfDay" (id) MATCH FULL
 ON DELETE RESTRICT ON UPDATE CASCADE;
 -- ddl-end --
@@ -251,7 +235,7 @@ CREATE TABLE public."PeopleAndConfReservation"(
 	id serial,
 	student_card integer,
 	"id_People" integer NOT NULL,
-	"id_ConfReservationAndConfDay" integer NOT NULL,
+	"id_ConfDayReservation" integer NOT NULL,
 	CONSTRAINT "PandCR" PRIMARY KEY (id)
 
 );
@@ -275,10 +259,10 @@ ON DELETE SET NULL ON UPDATE CASCADE;
 -- object: public."view_canceled_ConfReservation" | type: VIEW --
 -- DROP VIEW public."view_canceled_ConfReservation";
 CREATE VIEW public."view_canceled_ConfReservation"
-AS SELECT c.id as ConferenceID, c.name, cd.date, cr.id as ConfReservationID, cr.reserved_seats
+AS SELECT c.id as ConferenceID, c.name, cd.date as ConfReservationID
 FROM "ConfReservation" cr 
-INNER JOIN "ConfReservationAndConfDay" cracd on cr.id=cracd."id_ConfReservation"
-INNER JOIN "ConfDay" cd on cd.id=cracd."id_ConfDay"
+INNER JOIN "ConfDayReservation" cdr on cr.id=cdr."id_ConfReservation"
+INNER JOIN "ConfDay" cd on cd.id=cdr."id_ConfDay"
 INNER JOIN "Conference" c on c.id=cd."id_Conference"
 WHERE cr.canceled=true;
 COMMENT ON VIEW public."view_canceled_ConfReservation" IS 'Show canceled ConfReservations (and it''s conference name)';
@@ -297,11 +281,11 @@ COMMENT ON VIEW public."view_canceled_WorkshopReservations" IS 'Show canceled Wo
 -- object: public."view_popular_Conferences" | type: VIEW --
 -- DROP VIEW public."view_popular_Conferences";
 CREATE VIEW public."view_popular_Conferences"
-AS SELECT c.id, c.name, sum(cr.reserved_seats) as Popularity
+AS SELECT c.id, c.name, sum(cdr.reserved_seats) as Popularity
 FROM "Conference" c
 INNER JOIN "ConfDay" cd on cd."id_Conference"=c.id
-INNER JOIN "ConfReservationAndConfDay" cracd on cracd."id_ConfDay"=cd.id
-INNER JOIN "ConfReservation" cr on cr.id=cracd."id_ConfReservation"
+INNER JOIN "ConfDayReservation" cdr on cdr."id_ConfDay"=cd.id
+INNER JOIN "ConfReservation" cr on cr.id=cdr."id_ConfReservation"
 WHERE cr.canceled = false
 GROUP BY c.id, c.name
 ORDER BY Popularity DESC;
@@ -346,42 +330,13 @@ AS SELECT id, first_name || ' ' ||sur_name, login, email FROM "User"
 WHERE company=false;
 -- ddl-end --
 
--- object: "ConfReservationAndConfDay_fk" | type: CONSTRAINT --
--- ALTER TABLE public."PeopleAndConfReservation" DROP CONSTRAINT "ConfReservationAndConfDay_fk";
-ALTER TABLE public."PeopleAndConfReservation" ADD CONSTRAINT "ConfReservationAndConfDay_fk" FOREIGN KEY ("id_ConfReservationAndConfDay")
-REFERENCES public."ConfReservationAndConfDay" (id) MATCH FULL
+-- object: "ConfDayReservation_fk" | type: CONSTRAINT --
+-- ALTER TABLE public."PeopleAndConfReservation" DROP CONSTRAINT "ConfDayReservation_fk";
+ALTER TABLE public."PeopleAndConfReservation" ADD CONSTRAINT "ConfDayReservation_fk" FOREIGN KEY ("id_ConfDayReservation")
+REFERENCES public."ConfDayReservation" (id) MATCH FULL
 ON DELETE RESTRICT ON UPDATE CASCADE;
 -- ddl-end --
 
-
--- object: public.view_not_paid | type: VIEW --
--- DROP VIEW public.view_not_paid;
-CREATE VIEW public.view_not_paid
-AS SELECT u.id "UserID", u.name "Name", cr.id "ConfReservationID", cr.reserved_seats, SUM(pa.value) "Paid so far", SUM(pr.value) "Price"
-FROM "Payments" pa
-INNER JOIN "ConfReservation" cr ON cr."id_Payments"=pa.id AND cr.canceled=false
-INNER JOIN "User" u ON u.id=cr."id_User" AND u.company=true
-INNER JOIN "ConfReservationAndConfDay" cracd ON cracd."id_ConfReservation"=cr.id
-INNER JOIN "ConfDay" cd ON cd.id=cracd."id_ConfDay"
-INNER JOIN "Price" pr ON cd.id=pr."id_ConfDay" AND pr.date = cr.reservation_date
-INNER JOIN "Conference" c ON c.id=cd."id_Conference" AND c.start_date > CURRENT_DATE + 14
-GROUP BY "UserID", "ConfReservationID", cr.reserved_seats, "Name"
-HAVING SUM(pa.value) < SUM(pr.value)
-
-UNION
-
-SELECT u.id "UserID", u.first_name || ' ' || u.sur_name "Name", cr.id "ConfReservationID", cr.reserved_seats, SUM(pa.value) "Paid so far", SUM(pr.value) "Price"
-FROM "Payments" pa
-INNER JOIN "ConfReservation" cr ON cr."id_Payments"=pa.id AND cr.canceled=false
-INNER JOIN "User" u ON u.id=cr."id_User" AND u.company=false
-INNER JOIN "ConfReservationAndConfDay" cracd ON cracd."id_ConfReservation"=cr.id
-INNER JOIN "ConfDay" cd ON cd.id=cracd."id_ConfDay"
-INNER JOIN "Price" pr ON cd.id=pr."id_ConfDay" AND pr.date = cr.reservation_date
-INNER JOIN "Conference" c ON c.id=cd."id_Conference" AND c.start_date > CURRENT_DATE + 14
-GROUP BY "UserID", "ConfReservationID", cr.reserved_seats, "Name"
-HAVING SUM(pa.value) < SUM(pr.value);
-COMMENT ON VIEW public.view_not_paid IS 'Show Users that haven''t paid yet. For company, display it''s name, for not company first name and last.';
--- ddl-end --
 
 -- object: public.add_conference | type: FUNCTION --
 -- DROP FUNCTION public.add_conference(varchar,date,date,numeric,integer,numeric);
@@ -472,16 +427,108 @@ CREATE FUNCTION public.add_workshop ( "id_ConfDay" integer,  name varchar,  star
 VALUES(name,start_time,end_time,seats,price,id_ConfDay);$$;
 -- ddl-end --
 
--- object: public.add_payment | type: FUNCTION --
--- DROP FUNCTION public.add_payment(integer,numeric);
-CREATE FUNCTION public.add_payment ( "id_ConfReservation" integer,  value numeric)
+-- object: "ConfDayReservation_fk" | type: CONSTRAINT --
+-- ALTER TABLE public."WorkshopReservation" DROP CONSTRAINT "ConfDayReservation_fk";
+ALTER TABLE public."WorkshopReservation" ADD CONSTRAINT "ConfDayReservation_fk" FOREIGN KEY ("id_ConfDayReservation")
+REFERENCES public."ConfDayReservation" (id) MATCH FULL
+ON DELETE RESTRICT ON UPDATE CASCADE;
+-- ddl-end --
+
+
+-- object: "ConfReservation_fk" | type: CONSTRAINT --
+-- ALTER TABLE public."Payments" DROP CONSTRAINT "ConfReservation_fk";
+ALTER TABLE public."Payments" ADD CONSTRAINT "ConfReservation_fk" FOREIGN KEY ("id_ConfReservation")
+REFERENCES public."ConfReservation" (id) MATCH FULL
+ON DELETE RESTRICT ON UPDATE CASCADE;
+-- ddl-end --
+
+
+-- object: public.create_confreservation | type: FUNCTION --
+-- DROP FUNCTION public.create_confreservation(integer,integer,integer);
+CREATE FUNCTION public.create_confreservation ( id_user integer,  id_conf_day integer,  reserved_seats integer)
 	RETURNS void
 	LANGUAGE plpgsql
 	VOLATILE 
 	CALLED ON NULL INPUT
 	SECURITY INVOKER
 	COST 1
-	AS $$INSERT INTO "Payments"(value,"id_ConfReservation") VALUES(value,id_ConfReservation);$$;
+	AS $$DECLARE
+id_conf_reservation INTEGER;
+BEGIN
+
+INSERT INTO "ConfReservation"("id_User") VALUES(id_user) 
+RETURNING id INTO id_conf_reservation;
+PERFORM reserve_next_confday_for_confreservation(id_conf_reservation,id_conf_day,reserved_seats);
+END$$;
+COMMENT ON FUNCTION public.create_confreservation(integer,integer,integer) IS 'Create ConfReservation with first reservation for ConfDay.';
+-- ddl-end --
+
+-- object: public.reserve_next_confday_for_confreservation | type: FUNCTION --
+-- DROP FUNCTION public.reserve_next_confday_for_confreservation(integer,integer,integer);
+CREATE FUNCTION public.reserve_next_confday_for_confreservation ( id_conf_reservation integer,  id_conf_day integer,  reserved_seats integer)
+	RETURNS void
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	COST 1
+	AS $$BEGIN
+INSERT INTO "ConfDayReservation"("id_ConfReservation","id_ConfDay",reserved_seats) VALUES(id_conf_reservation,id_conf_day,reserved_seats);
+END$$;
+COMMENT ON FUNCTION public.reserve_next_confday_for_confreservation(integer,integer,integer) IS 'Adds ConfDayReservation to ConfReservation';
+-- ddl-end --
+
+-- object: public.add_payment | type: FUNCTION --
+-- DROP FUNCTION public.add_payment(integer,numeric);
+CREATE FUNCTION public.add_payment ( id_conf_reservation integer,  value numeric)
+	RETURNS void
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	COST 1
+	AS $$BEGIN
+INSERT INTO "Payments"(value,"id_ConfReservation") VALUES(value,id_conf_reservation);	
+END$$;
+COMMENT ON FUNCTION public.add_payment(integer,numeric) IS 'Add payment to ConfReservation';
+-- ddl-end --
+
+-- object: public.cancel_confreservation | type: FUNCTION --
+-- DROP FUNCTION public.cancel_confreservation(integer);
+CREATE FUNCTION public.cancel_confreservation ( id_conf_reservation integer)
+	RETURNS void
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	COST 1
+	AS $$DECLARE
+workshop_id RECORD;
+BEGIN
+  UPDATE "ConfReservation" SET canceled=true WHERE id=id_conf_reservation;
+
+  FOR workshop_id IN SELECT wr.id FROM "ConfDayReservation" cdr 
+  INNER JOIN "WorkshopReservation" wr ON wr."id_ConfDayReservation"=cdr.id
+  WHERE cdr."id_ConfReservation"=id_conf_reservation LOOP
+
+    UPDATE "WorkshopReservation" SET canceled=true WHERE id=workshop_id;
+
+  END LOOP;
+END$$;
+-- ddl-end --
+
+-- object: public.reserve_workshop | type: FUNCTION --
+-- DROP FUNCTION public.reserve_workshop(integer,smallint,integer);
+CREATE FUNCTION public.reserve_workshop ( id_conf_day_reservation integer,  id_workshop smallint,  reserved_seats integer)
+	RETURNS void
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	COST 1
+	AS $$BEGIN
+INSERT INTO "WorkshopReservation"(reserved_seats,"id_Workshop","id_ConfDayReservation") VALUES(reserved_seats, id_workshop, id_conf_day_reservation);
+END$$;
 -- ddl-end --
 
 
@@ -497,5 +544,6 @@ SELECT add_user(true,'SM',null,null,'smigfirm','mail1@smig.me','password1');
 --SELECT insert_user(true,null,null,null,'smigfirm','mail1@smig.me','password1');
 --SELECT insert_user(false,'SM',null,null,'smigfirm','mail1@smig.me','password1');
 --SELECT add_price(1,CURRENT_DATE-1,20.2);
+SELECT create_confreservation(1,1,250);
 ---
 
