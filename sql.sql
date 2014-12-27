@@ -31,7 +31,8 @@ CREATE TABLE public."User"(
 	CONSTRAINT "pk_User" PRIMARY KEY (id),
 	CONSTRAINT unique_login UNIQUE (login),
 	CONSTRAINT unique_email UNIQUE (email),
-	CONSTRAINT check_good_names CHECK ((company=true AND name IS NOT NULL) OR (company=false AND first_name IS NOT NULL AND sur_name IS NOT NULL))
+	CONSTRAINT check_good_names CHECK ((company=true AND name IS NOT NULL) OR (company=false AND first_name IS NOT NULL AND sur_name IS 
+NOT NULL))
 
 );
 -- ddl-end --
@@ -122,8 +123,7 @@ CREATE TABLE public."Payments"(
 	timestamp timestamp NOT NULL DEFAULT now(),
 	value numeric NOT NULL,
 	"id_ConfReservation" integer NOT NULL,
-	CONSTRAINT "id_User" PRIMARY KEY (id),
-	CONSTRAINT positive_price CHECK (value > 0)
+	CONSTRAINT "id_User" PRIMARY KEY (id)
 
 );
 -- ddl-end --
@@ -340,7 +340,8 @@ ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- object: public.add_conference | type: FUNCTION --
 -- DROP FUNCTION public.add_conference(varchar,date,date,numeric,integer,numeric);
-CREATE FUNCTION public.add_conference ( name varchar,  start_date date,  end_date date,  discount numeric,  seats integer,  price numeric DEFAULT -1)
+CREATE FUNCTION public.add_conference ( name varchar,  start_date date,  end_date date,  discount numeric,  seats integer,  price numeric 
+DEFAULT -1)
 	RETURNS void
 	LANGUAGE plpgsql
 	VOLATILE 
@@ -368,12 +369,14 @@ WHILE i<days LOOP
 END LOOP;
 
 END$$;
-COMMENT ON FUNCTION public.add_conference(varchar,date,date,numeric,integer,numeric) IS 'Add Conference with ConfDays and (optional) first price from CURRENT_DATE';
+COMMENT ON FUNCTION public.add_conference(varchar,date,date,numeric,integer,numeric) IS 'Add Conference with ConfDays and (optional) first 
+price from CURRENT_DATE';
 -- ddl-end --
 
 -- object: public.add_user | type: FUNCTION --
 -- DROP FUNCTION public.add_user(boolean,varchar,varchar,varchar,varchar,varchar,varchar);
-CREATE FUNCTION public.add_user ( company boolean,  name varchar,  first_name varchar,  sur_name varchar,  login varchar,  email varchar,  password varchar)
+CREATE FUNCTION public.add_user ( company boolean,  name varchar,  first_name varchar,  sur_name varchar,  login varchar,  email varchar,  
+password varchar)
 	RETURNS void
 	LANGUAGE sql
 	VOLATILE 
@@ -527,7 +530,154 @@ CREATE FUNCTION public.reserve_workshop ( id_conf_day_reservation integer,  id_w
 	SECURITY INVOKER
 	COST 1
 	AS $$BEGIN
-INSERT INTO "WorkshopReservation"(reserved_seats,"id_Workshop","id_ConfDayReservation") VALUES(reserved_seats, id_workshop, id_conf_day_reservation);
+INSERT INTO "WorkshopReservation"(reserved_seats,"id_Workshop","id_ConfDayReservation") VALUES(reserved_seats, id_workshop, 
+id_conf_day_reservation);
+END$$;
+-- ddl-end --
+
+-- object: public.connect_person_to_conference | type: FUNCTION --
+-- DROP FUNCTION public.connect_person_to_conference(varchar,varchar,integer,integer);
+CREATE FUNCTION public.connect_person_to_conference ( first_name varchar,  sur_name varchar,  id_conf_day_reservation integer,  student_card 
+integer DEFAULT NULL)
+	RETURNS void
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	COST 1
+	AS $$DECLARE
+person_id INTEGER;
+BEGIN
+SELECT p.id INTO person_id FROM "People" p WHERE p.first_name=first_name AND p.sur_name=sur_name;
+IF NOT FOUND THEN 
+    INSERT INTO "People"(first_name,sur_name) VALUES(first_name,sur_name) RETURNING id INTO person_id;
+END IF;
+
+INSERT INTO "PeopleAndConfReservation"("id_People", "id_ConfDay", student_card) VALUES(person_id, id_conf_day_reservation, student_card);
+
+END$$;
+-- ddl-end --
+
+-- object: public.connect_person_to_workshop | type: FUNCTION --
+-- DROP FUNCTION public.connect_person_to_workshop(integer,integer);
+CREATE FUNCTION public.connect_person_to_workshop ( id_people_and_conf_reservation integer,  id_workshop_reservation integer)
+	RETURNS void
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	COST 1
+	AS $$BEGIN
+INSERT INTO "PeopleAndWorkshopReservation"("id_WorkshopReservation", "id_PeopleAndConfReservation") VALUES(id_workshop_reservation, 
+id_people_and_conf_reservation);
+END$$;
+-- ddl-end --
+
+-- object: public.edit_user | type: FUNCTION --
+-- DROP FUNCTION public.edit_user(varchar,varchar,varchar,varchar,varchar,varchar);
+CREATE FUNCTION public.edit_user ( login varchar,  name varchar,  first_name varchar,  sur_name varchar,  email varchar,  password varchar)
+	RETURNS void
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	COST 1
+	AS $$BEGIN
+
+IF name IS NOT NULL THEN
+  UPDATE "User" u SET u.name=name WHERE u.login=login;
+END IF;
+IF first_name IS NOT NULL THEN
+  UPDATE "User" u SET u.first_name=first_name WHERE u.login=login;
+END IF;
+IF sur_name IS NOT NULL THEN
+  UPDATE "User" u SET u.sur_name=sur_name WHERE u.login=login;
+END IF;
+IF email IS NOT NULL THEN
+  UPDATE "User" u SET u.email=email WHERE u.login=login;
+END IF;
+IF password IS NOT NULL THEN
+  UPDATE "User" u SET u.password=password WHERE u.login=login;
+END IF;
+
+END$$;
+-- ddl-end --
+
+-- object: public.edit_workshop_reservation_seats | type: FUNCTION --
+-- DROP FUNCTION public.edit_workshop_reservation_seats(integer,integer);
+CREATE FUNCTION public.edit_workshop_reservation_seats ( id_workshop_reservation integer,  new_reserved_seats integer)
+	RETURNS void
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	COST 1
+	AS $$BEGIN
+UPDATE "WorkshopReservation" wr SET wr.reserved_seats=new_reserved_seats WHERE wr.id=id_workshop_reservation;
+END$$;
+-- ddl-end --
+
+-- object: public.edit_conf_day_reservation_seats | type: FUNCTION --
+-- DROP FUNCTION public.edit_conf_day_reservation_seats(integer,integer);
+CREATE FUNCTION public.edit_conf_day_reservation_seats ( id_conf_day_reservation integer,  new_reserved_seats integer)
+	RETURNS void
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	COST 1
+	AS $$BEGIN
+UPDATE "ConfDayReservation" cdr SET cdr.reserved_seats=new_reserved_seats WHERE cdr.id=id_conf_day_reservation;
+END$$;
+-- ddl-end --
+
+-- object: public.edit_conf_day_seats | type: FUNCTION --
+-- DROP FUNCTION public.edit_conf_day_seats(integer,integer);
+CREATE FUNCTION public.edit_conf_day_seats ( id_conf_day integer,  new_seats integer)
+	RETURNS void
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	COST 1
+	AS $$BEGIN
+UPDATE "ConfDay" cd SET cd.seats=new_seats WHERE cd.id=id_conf_day;
+END$$;
+-- ddl-end --
+
+-- object: public.edit_workshop_seats | type: FUNCTION --
+-- DROP FUNCTION public.edit_workshop_seats(integer,integer);
+CREATE FUNCTION public.edit_workshop_seats ( id_workshop integer,  new_seats integer)
+	RETURNS void
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	COST 1
+	AS $$BEGIN
+UPDATE "Workshop" w SET w.seats=new_seats WHERE w.id=id_workshop;
+END$$;
+-- ddl-end --
+
+-- object: public.count_price_for_workshop_reservation | type: FUNCTION --
+-- DROP FUNCTION public.count_price_for_workshop_reservation(integer);
+CREATE FUNCTION public.count_price_for_workshop_reservation ( id_workshop_reservation integer)
+	RETURNS numeric
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	COST 1
+	AS $$DECLARE
+number_of_people INTEGER;
+price NUMERIC;
+BEGIN
+SELECT count(pawr.id) INTO number_of_people FROM "PeopleAndWorkshopReservation" pawr
+INNER JOIN "WorkshopReservation" wr ON wr.id=pawr."id_WorkshopReservation" AND wr.id=id_workshop_reservation
+
+SELECT w.price INTO price FROM "WorkshopReservation" wr INNER JOIN "Workshop" w ON wr."id_Workshop"=w.id AND wr.id=id_workshop_reservation;
+
+RETURN (number_of_people * price);
 END$$;
 -- ddl-end --
 
