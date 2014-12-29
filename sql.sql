@@ -888,6 +888,34 @@ CREATE TRIGGER check_seats_in_workshop
 	EXECUTE PROCEDURE public.check_available_seats_on_workshop();
 -- ddl-end --
 
+-- object: public.check_date_price | type: FUNCTION --
+-- DROP FUNCTION public.check_date_price();
+CREATE FUNCTION public.check_date_price ()
+	RETURNS trigger
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	COST 1
+	AS $$BEGIN
+
+IF OLD.date <= CURRENT_DATE THEN
+  RAISE EXCEPTION 'You cannot delete past prices'
+END IF;
+
+RETURN OLD;
+END;$$;
+-- ddl-end --
+
+-- object: check_date_price | type: TRIGGER --
+-- DROP TRIGGER check_date_price ON public."Price";
+CREATE TRIGGER check_date_price
+	BEFORE DELETE OR UPDATE
+	ON public."Price"
+	FOR EACH ROW
+	EXECUTE PROCEDURE public.check_date_price();
+-- ddl-end --
+
 -- object: public.check_overlaping_workshop_reservations | type: FUNCTION --
 -- DROP FUNCTION public.check_overlaping_workshop_reservations();
 CREATE FUNCTION public.check_overlaping_workshop_reservations ()
