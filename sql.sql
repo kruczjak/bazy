@@ -888,6 +888,47 @@ CREATE TRIGGER check_seats_in_workshop
 	EXECUTE PROCEDURE public.check_available_seats_on_workshop();
 -- ddl-end --
 
+-- object: public.check_overlaping_workshop_reservations | type: FUNCTION --
+-- DROP FUNCTION public.check_overlaping_workshop_reservations();
+CREATE FUNCTION public.check_overlaping_workshop_reservations ()
+	RETURNS trigger
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	COST 1
+	AS $$DECLARE
+one RECORD;
+new_reservation RECORD;
+BEGIN
+
+SELECT w.start_time, w.end_time INTO new_reservation FROM "WorkshopReservation" wr
+INNER JOIN "Workshop" w ON w.id=wr."id_Workshop" AND wr.id=NEW."id_WorkshopReservation";
+
+FOR one IN SELECT w.start_time, w.end_time 
+FROM "PeopleAndWorkshopReservation" pawr
+INNER JOIN "WorkshopReservation" wr ON wr.id=pawr."id_WorkshopReservation" AND pawr."id_PeopleAndConfReservation"=NEW."id_PeopleAndConfReservation"
+INNER JOIN "Workshop" w ON w.id=wr."id_Workshop"
+LOOP
+  IF (new_reservation.start_time<one.start_time AND new_reservation.end_time>one.end_time) OR (new_reservation.start_time<one.end_time AND new_reservation.end_time>one.end_time) 
+OR (new_reservation.start_time<one.start_time AND new_reservation.end_time>one.start_time) THEN
+    RAISE EXCEPTION 'workshop reservations are overlapping';
+  END IF;
+END LOOP;
+ 
+RETURN NEW;
+END;$$;
+-- ddl-end --
+
+-- object: check_overlapping_workshop_reservations | type: TRIGGER --
+-- DROP TRIGGER check_overlapping_workshop_reservations ON public."PeopleAndWorkshopReservation";
+CREATE TRIGGER check_overlapping_workshop_reservations
+	BEFORE INSERT OR UPDATE
+	ON public."PeopleAndWorkshopReservation"
+	FOR EACH ROW
+	EXECUTE PROCEDURE public.check_overlaping_workshop_reservations();
+-- ddl-end --
+
 
 -- Appended SQL commands --
 SELECT add_conference('Taka tam', CURRENT_DATE, CURRENT_DATE+1, 0.5, 300, 3);
