@@ -31,7 +31,8 @@ CREATE TABLE public."User"(
 	CONSTRAINT "pk_User" PRIMARY KEY (id),
 	CONSTRAINT unique_login UNIQUE (login),
 	CONSTRAINT unique_email UNIQUE (email),
-	CONSTRAINT check_good_names CHECK ((company=true AND name IS NOT NULL) OR (company=false AND first_name IS NOT NULL AND sur_name IS NOT NULL))
+	CONSTRAINT check_good_names CHECK ((company=true AND name IS NOT NULL) OR (company=false AND first_name IS NOT NULL AND sur_name IS 
+NOT NULL))
 
 );
 -- ddl-end --
@@ -339,7 +340,8 @@ ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- object: public.add_conference | type: FUNCTION --
 -- DROP FUNCTION public.add_conference(varchar,date,date,numeric,integer,numeric);
-CREATE FUNCTION public.add_conference ( name varchar,  start_date date,  end_date date,  discount numeric,  seats integer,  price numeric DEFAULT 0)
+CREATE FUNCTION public.add_conference ( name varchar,  start_date date,  end_date date,  discount numeric,  seats integer,  price numeric 
+DEFAULT 0)
 	RETURNS void
 	LANGUAGE plpgsql
 	VOLATILE 
@@ -365,12 +367,14 @@ WHILE i<days LOOP
 END LOOP;
 
 END$$;
-COMMENT ON FUNCTION public.add_conference(varchar,date,date,numeric,integer,numeric) IS 'Add Conference with ConfDays and first price from CURRENT_DATE';
+COMMENT ON FUNCTION public.add_conference(varchar,date,date,numeric,integer,numeric) IS 'Add Conference with ConfDays and first price from 
+CURRENT_DATE';
 -- ddl-end --
 
 -- object: public.add_user | type: FUNCTION --
 -- DROP FUNCTION public.add_user(boolean,varchar,varchar,varchar,varchar,varchar,varchar);
-CREATE FUNCTION public.add_user ( company boolean,  name varchar,  first_name varchar,  sur_name varchar,  login varchar,  email varchar,  password varchar)
+CREATE FUNCTION public.add_user ( company boolean,  name varchar,  first_name varchar,  sur_name varchar,  login varchar,  email varchar,  
+password varchar)
 	RETURNS void
 	LANGUAGE sql
 	VOLATILE 
@@ -524,13 +528,15 @@ CREATE FUNCTION public.reserve_workshop ( id_conf_day_reservation integer,  id_w
 	SECURITY INVOKER
 	COST 1
 	AS $$BEGIN
-INSERT INTO "WorkshopReservation"(reserved_seats,"id_Workshop","id_ConfDayReservation") VALUES(reserved_seats, id_workshop, id_conf_day_reservation);
+INSERT INTO "WorkshopReservation"(reserved_seats,"id_Workshop","id_ConfDayReservation") VALUES(reserved_seats, id_workshop, 
+id_conf_day_reservation);
 END$$;
 -- ddl-end --
 
 -- object: public.connect_person_to_conference | type: FUNCTION --
 -- DROP FUNCTION public.connect_person_to_conference(varchar,varchar,integer,integer);
-CREATE FUNCTION public.connect_person_to_conference ( _first_name varchar,  _sur_name varchar,  id_conf_day_reservation integer,  student_card integer DEFAULT NULL)
+CREATE FUNCTION public.connect_person_to_conference ( _first_name varchar,  _sur_name varchar,  id_conf_day_reservation integer,  student_card 
+integer DEFAULT NULL)
 	RETURNS void
 	LANGUAGE plpgsql
 	VOLATILE 
@@ -545,7 +551,8 @@ IF NOT FOUND THEN
     INSERT INTO "People"(first_name,sur_name) VALUES(_first_name,_sur_name) RETURNING id INTO person_id;
 END IF;
 
-INSERT INTO "PeopleAndConfReservation"("id_People", "id_ConfDayReservation", student_card) VALUES(person_id, id_conf_day_reservation, student_card);
+INSERT INTO "PeopleAndConfReservation"("id_People", "id_ConfDayReservation", student_card) VALUES(person_id, id_conf_day_reservation, 
+student_card);
 
 END$$;
 -- ddl-end --
@@ -560,7 +567,8 @@ CREATE FUNCTION public.connect_person_to_workshop ( id_people_and_conf_reservati
 	SECURITY INVOKER
 	COST 1
 	AS $$BEGIN
-INSERT INTO "PeopleAndWorkshopReservation"("id_WorkshopReservation", "id_PeopleAndConfReservation") VALUES(id_workshop_reservation, id_people_and_conf_reservation);
+INSERT INTO "PeopleAndWorkshopReservation"("id_WorkshopReservation", "id_PeopleAndConfReservation") VALUES(id_workshop_reservation, 
+id_people_and_conf_reservation);
 END$$;
 -- ddl-end --
 
@@ -935,10 +943,12 @@ INNER JOIN "Workshop" w ON w.id=wr."id_Workshop" AND wr.id=NEW."id_WorkshopReser
 
 FOR one IN SELECT w.start_time, w.end_time 
 FROM "PeopleAndWorkshopReservation" pawr
-INNER JOIN "WorkshopReservation" wr ON wr.id=pawr."id_WorkshopReservation" AND pawr."id_PeopleAndConfReservation"=NEW."id_PeopleAndConfReservation"
+INNER JOIN "WorkshopReservation" wr ON wr.id=pawr."id_WorkshopReservation" AND 
+pawr."id_PeopleAndConfReservation"=NEW."id_PeopleAndConfReservation"
 INNER JOIN "Workshop" w ON w.id=wr."id_Workshop"
 LOOP
-  IF (new_reservation.start_time<one.start_time AND new_reservation.end_time>one.end_time) OR (new_reservation.start_time<one.end_time AND new_reservation.end_time>one.end_time) 
+  IF (new_reservation.start_time<one.start_time AND new_reservation.end_time>one.end_time) OR (new_reservation.start_time<one.end_time AND 
+new_reservation.end_time>one.end_time) 
 OR (new_reservation.start_time<one.start_time AND new_reservation.end_time>one.start_time) THEN
     RAISE EXCEPTION 'workshop reservations are overlapping';
   END IF;
@@ -955,6 +965,81 @@ CREATE TRIGGER check_overlapping_workshop_reservations
 	ON public."PeopleAndWorkshopReservation"
 	FOR EACH ROW
 	EXECUTE PROCEDURE public.check_overlaping_workshop_reservations();
+-- ddl-end --
+
+-- object: public.check_people_number_on_reservation | type: FUNCTION --
+-- DROP FUNCTION public.check_people_number_on_reservation();
+CREATE FUNCTION public.check_people_number_on_reservation ()
+	RETURNS trigger
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	COST 1
+	AS $$DECLARE
+current_number INTEGER;
+max INTEGER;
+BEGIN
+
+SELECT cdr.reserved_seats INTO max FROM "PeopleAndConfReservation" pacr
+INNER JOIN  "ConfDayReservation" cdr ON cdr.id=pacr."id_ConfDayReservation"
+AND pacr.id=NEW.id;
+
+SELECT count(pacr.id) INTO current_number FROM "PeopleAndConfReservation" pacr 
+WHEN pacr."id_ConfDayReservation"=NEW."id_ConfDayReservation";
+
+IF max < current_number THEN
+  RAISE EXCEPTION 'Too many people on reservation'
+END IF;
+
+RETURN NEW;
+END;$$;
+-- ddl-end --
+
+-- object: people_number_on_reservation | type: TRIGGER --
+-- DROP TRIGGER people_number_on_reservation ON public."PeopleAndConfReservation";
+CREATE TRIGGER people_number_on_reservation
+	AFTER INSERT OR UPDATE
+	ON public."PeopleAndConfReservation"
+	FOR EACH ROW
+	EXECUTE PROCEDURE public.check_people_number_on_reservation();
+-- ddl-end --
+
+-- object: public.check_people_number_on_workshop_reservation | type: FUNCTION --
+-- DROP FUNCTION public.check_people_number_on_workshop_reservation();
+CREATE FUNCTION public.check_people_number_on_workshop_reservation ()
+	RETURNS trigger
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	COST 1
+	AS $$DECLARE
+current_state INTEGER;
+max INTEGER;
+BEGIN
+
+SELECT reserved_seats INTO max FROM "WorkshopReservation"
+WHERE id=NEW."id_WorkshopReservation";
+
+SELECT count(id) INTO current_state FROM "PeopleAndWorkshopReservation"
+WHERE "id_WorkshopReservation"=NEW."id_WorkshopReservation";
+
+IF max < current_state THEN
+  RAISE EXCEPTION 'Too many people on workshop reservation';
+END IF;
+
+RETURN NEW;
+END;$$;
+-- ddl-end --
+
+-- object: check_number_on_w_reservation | type: TRIGGER --
+-- DROP TRIGGER check_number_on_w_reservation ON public."PeopleAndWorkshopReservation";
+CREATE TRIGGER check_number_on_w_reservation
+	AFTER INSERT OR UPDATE
+	ON public."PeopleAndWorkshopReservation"
+	FOR EACH ROW
+	EXECUTE PROCEDURE public.check_people_number_on_workshop_reservation();
 -- ddl-end --
 
 
