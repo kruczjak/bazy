@@ -85,8 +85,8 @@ CREATE TABLE public."Price"(
 CREATE TABLE public."Workshop"(
 	id serial NOT NULL,
 	name varchar,
-	start_time time NOT NULL,
-	end_time time NOT NULL,
+	start_time timestamp NOT NULL,
+	end_time timestamp NOT NULL,
 	seats integer NOT NULL,
 	price numeric NOT NULL,
 	canceled boolean DEFAULT false,
@@ -94,7 +94,7 @@ CREATE TABLE public."Workshop"(
 	CONSTRAINT "pk_Workshop" PRIMARY KEY (id),
 	CONSTRAINT positive_seats CHECK (seats > 0),
 	CONSTRAINT positive_price CHECK (price >= 0),
-	CONSTRAINT check_time CHECK (start_time<=end_time AND start_time>=CURRENT_TIME AND end_time >= CURRENT_TIME)
+	CONSTRAINT check_time CHECK (start_time<=end_time AND start_time>=CURRENT_TIMESTAMP AND end_time >= CURRENT_TIMESTAMP)
 
 );
 -- ddl-end --
@@ -394,7 +394,7 @@ CREATE FUNCTION public.add_price ( id_confday integer,  date date,  price numeri
 	VOLATILE 
 	CALLED ON NULL INPUT
 	SECURITY INVOKER
-	COST 1
+	COST 100
 	AS $$DECLARE
 conf_day_date DATE;
 BEGIN
@@ -423,7 +423,7 @@ CREATE FUNCTION public.add_workshop ( "id_ConfDay" integer,  name varchar,  star
 	VOLATILE 
 	CALLED ON NULL INPUT
 	SECURITY INVOKER
-	COST 1
+	COST 100
 	AS $$INSERT INTO "Workshop"(name,start_time,end_time,seats,price,"id_ConfDay") 
 VALUES(name,start_time,end_time,seats,price,id_ConfDay);$$;
 -- ddl-end --
@@ -452,7 +452,7 @@ CREATE FUNCTION public.create_confreservation ( id_user integer,  id_conf_day in
 	VOLATILE 
 	CALLED ON NULL INPUT
 	SECURITY INVOKER
-	COST 1
+	COST 100
 	AS $$DECLARE
 id_conf_reservation INTEGER;
 BEGIN
@@ -472,7 +472,7 @@ CREATE FUNCTION public.reserve_next_confday_for_confreservation ( id_conf_reserv
 	VOLATILE 
 	CALLED ON NULL INPUT
 	SECURITY INVOKER
-	COST 1
+	COST 100
 	AS $$BEGIN
 INSERT INTO "ConfDayReservation"("id_ConfReservation","id_ConfDay",reserved_seats) VALUES(id_conf_reservation,id_conf_day,reserved_seats);
 END$$;
@@ -487,7 +487,7 @@ CREATE FUNCTION public.add_payment ( id_conf_reservation integer,  value numeric
 	VOLATILE 
 	CALLED ON NULL INPUT
 	SECURITY INVOKER
-	COST 1
+	COST 100
 	AS $$BEGIN
 INSERT INTO "Payments"(value,"id_ConfReservation") VALUES(value,id_conf_reservation);	
 END$$;
@@ -502,7 +502,7 @@ CREATE FUNCTION public.cancel_confreservation ( id_conf_reservation integer)
 	VOLATILE 
 	CALLED ON NULL INPUT
 	SECURITY INVOKER
-	COST 1
+	COST 100
 	AS $$DECLARE
 workshop_id RECORD;
 BEGIN
@@ -526,7 +526,7 @@ CREATE FUNCTION public.reserve_workshop ( id_conf_day_reservation integer,  id_w
 	VOLATILE 
 	CALLED ON NULL INPUT
 	SECURITY INVOKER
-	COST 1
+	COST 100
 	AS $$BEGIN
 INSERT INTO "WorkshopReservation"(reserved_seats,"id_Workshop","id_ConfDayReservation") VALUES(reserved_seats, id_workshop, 
 id_conf_day_reservation);
@@ -542,7 +542,7 @@ integer DEFAULT NULL)
 	VOLATILE 
 	CALLED ON NULL INPUT
 	SECURITY INVOKER
-	COST 1
+	COST 100
 	AS $$DECLARE
 person_id INTEGER;
 BEGIN
@@ -565,7 +565,7 @@ CREATE FUNCTION public.connect_person_to_workshop ( id_people_and_conf_reservati
 	VOLATILE 
 	CALLED ON NULL INPUT
 	SECURITY INVOKER
-	COST 1
+	COST 100
 	AS $$BEGIN
 INSERT INTO "PeopleAndWorkshopReservation"("id_WorkshopReservation", "id_PeopleAndConfReservation") VALUES(id_workshop_reservation, 
 id_people_and_conf_reservation);
@@ -580,7 +580,7 @@ CREATE FUNCTION public.edit_user ( login varchar,  name varchar,  first_name var
 	VOLATILE 
 	CALLED ON NULL INPUT
 	SECURITY INVOKER
-	COST 1
+	COST 100
 	AS $$BEGIN
 
 IF name IS NOT NULL THEN
@@ -610,7 +610,7 @@ CREATE FUNCTION public.edit_workshop_reservation_seats ( id_workshop_reservation
 	VOLATILE 
 	CALLED ON NULL INPUT
 	SECURITY INVOKER
-	COST 1
+	COST 100
 	AS $$BEGIN
 UPDATE "WorkshopReservation" wr SET wr.reserved_seats=new_reserved_seats WHERE wr.id=id_workshop_reservation;
 END$$;
@@ -624,7 +624,7 @@ CREATE FUNCTION public.edit_conf_day_reservation_seats ( id_conf_day_reservation
 	VOLATILE 
 	CALLED ON NULL INPUT
 	SECURITY INVOKER
-	COST 1
+	COST 100
 	AS $$BEGIN
 UPDATE "ConfDayReservation" cdr SET cdr.reserved_seats=new_reserved_seats WHERE cdr.id=id_conf_day_reservation;
 END$$;
@@ -638,7 +638,7 @@ CREATE FUNCTION public.edit_conf_day_seats ( id_conf_day integer,  new_seats int
 	VOLATILE 
 	CALLED ON NULL INPUT
 	SECURITY INVOKER
-	COST 1
+	COST 100
 	AS $$BEGIN
 UPDATE "ConfDay" cd SET cd.seats=new_seats WHERE cd.id=id_conf_day;
 END$$;
@@ -652,7 +652,7 @@ CREATE FUNCTION public.edit_workshop_seats ( id_workshop integer,  new_seats int
 	VOLATILE 
 	CALLED ON NULL INPUT
 	SECURITY INVOKER
-	COST 1
+	COST 100
 	AS $$BEGIN
 UPDATE "Workshop" w SET w.seats=new_seats WHERE w.id=id_workshop;
 END$$;
@@ -666,7 +666,7 @@ CREATE FUNCTION public.get_sum_price_for_workshop_reservation ( id_workshop_rese
 	VOLATILE 
 	CALLED ON NULL INPUT
 	SECURITY INVOKER
-	COST 1
+	COST 100
 	AS $$DECLARE
 number_of_people INTEGER;
 price NUMERIC;
@@ -697,7 +697,7 @@ CREATE FUNCTION public.get_price_and_discount_from_conf_day ( id_conf_day intege
 	VOLATILE 
 	CALLED ON NULL INPUT
 	SECURITY INVOKER
-	COST 1
+	COST 100
 	AS $$DECLARE
 return_record public.price_and_discount;
 BEGIN
@@ -722,7 +722,7 @@ CREATE FUNCTION public.sum_price_for_conf_reservation ( id_conf_reservation inte
 	VOLATILE 
 	CALLED ON NULL INPUT
 	SECURITY INVOKER
-	COST 1
+	COST 100
 	AS $$DECLARE
 sum NUMERIC;
 partial_sum NUMERIC;
@@ -746,7 +746,7 @@ CREATE FUNCTION public.get_sum_conf_day_reservation ( id_conf_day_reservation in
 	VOLATILE 
 	CALLED ON NULL INPUT
 	SECURITY INVOKER
-	COST 1
+	COST 100
 	AS $$DECLARE
 c_d_reservation RECORD;
 workshop_reservation RECORD;
@@ -789,7 +789,7 @@ CREATE FUNCTION public.list_people_on_conf_day ( id_conf_day integer)
 	VOLATILE 
 	CALLED ON NULL INPUT
 	SECURITY INVOKER
-	COST 1
+	COST 100
 	AS $$BEGIN
 
 RETURN QUERY SELECT p.first_name,p.sur_name
@@ -811,7 +811,7 @@ CREATE FUNCTION public.list_people_on_workshop ( id_workshop integer)
 	VOLATILE 
 	CALLED ON NULL INPUT
 	SECURITY INVOKER
-	COST 1
+	COST 100
 	AS $$BEGIN
 
 RETURN QUERY SELECT p.first_name,p.sur_name
@@ -832,7 +832,7 @@ CREATE FUNCTION public.check_available_seats_on_confday ()
 	VOLATILE 
 	CALLED ON NULL INPUT
 	SECURITY INVOKER
-	COST 1
+	COST 100
 	AS $$DECLARE 
 available_seats INTEGER;
 res_seats INTEGER;
@@ -868,7 +868,7 @@ CREATE FUNCTION public.check_available_seats_on_workshop ()
 	VOLATILE 
 	CALLED ON NULL INPUT
 	SECURITY INVOKER
-	COST 1
+	COST 100
 	AS $$DECLARE 
 available_seats INTEGER;
 res_seats INTEGER;
@@ -904,7 +904,7 @@ CREATE FUNCTION public.check_date_price ()
 	VOLATILE 
 	CALLED ON NULL INPUT
 	SECURITY INVOKER
-	COST 1
+	COST 100
 	AS $$BEGIN
 
 IF OLD.date <= CURRENT_DATE THEN
@@ -932,7 +932,7 @@ CREATE FUNCTION public.check_overlaping_workshop_reservations ()
 	VOLATILE 
 	CALLED ON NULL INPUT
 	SECURITY INVOKER
-	COST 1
+	COST 100
 	AS $$DECLARE
 one RECORD;
 new_reservation RECORD;
@@ -975,7 +975,7 @@ CREATE FUNCTION public.check_people_number_on_reservation ()
 	VOLATILE 
 	CALLED ON NULL INPUT
 	SECURITY INVOKER
-	COST 1
+	COST 100
 	AS $$DECLARE
 current_number INTEGER;
 max INTEGER;
@@ -986,10 +986,10 @@ INNER JOIN  "ConfDayReservation" cdr ON cdr.id=pacr."id_ConfDayReservation"
 AND pacr.id=NEW.id;
 
 SELECT count(pacr.id) INTO current_number FROM "PeopleAndConfReservation" pacr 
-WHEN pacr."id_ConfDayReservation"=NEW."id_ConfDayReservation";
+WHERE pacr."id_ConfDayReservation"=NEW."id_ConfDayReservation";
 
 IF max < current_number THEN
-  RAISE EXCEPTION 'Too many people on reservation'
+  RAISE EXCEPTION 'Too many people on reservation';
 END IF;
 
 RETURN NEW;
@@ -1013,7 +1013,7 @@ CREATE FUNCTION public.check_people_number_on_workshop_reservation ()
 	VOLATILE 
 	CALLED ON NULL INPUT
 	SECURITY INVOKER
-	COST 1
+	COST 100
 	AS $$DECLARE
 current_state INTEGER;
 max INTEGER;
@@ -1040,6 +1040,210 @@ CREATE TRIGGER check_number_on_w_reservation
 	ON public."PeopleAndWorkshopReservation"
 	FOR EACH ROW
 	EXECUTE PROCEDURE public.check_people_number_on_workshop_reservation();
+-- ddl-end --
+
+-- object: public.check_conf_day_reservation_seats_after_edit | type: FUNCTION --
+-- DROP FUNCTION public.check_conf_day_reservation_seats_after_edit();
+CREATE FUNCTION public.check_conf_day_reservation_seats_after_edit ()
+	RETURNS trigger
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	COST 100
+	AS $$DECLARE
+people INTEGER;
+BEGIN
+
+SELECT count(pacr.id) INTO people FROM "PeopleAndConfReservation" pacr
+WHERE pacr."id_ConfDayReservation" = NEW.id;
+
+IF NEW.reserved_seats < people THEN
+  RAISE EXCEPTION 'Cannot resize seats, there is too many people!';
+END IF;
+
+RETURN NEW;
+END;$$;
+-- ddl-end --
+
+-- object: check_seats_after_edit | type: TRIGGER --
+-- DROP TRIGGER check_seats_after_edit ON public."ConfDayReservation";
+CREATE TRIGGER check_seats_after_edit
+	AFTER UPDATE OF reserved_seats
+	ON public."ConfDayReservation"
+	FOR EACH ROW
+	EXECUTE PROCEDURE public.check_conf_day_reservation_seats_after_edit();
+-- ddl-end --
+
+-- object: public.check_workshop_reservation_seats_after_edit | type: FUNCTION --
+-- DROP FUNCTION public.check_workshop_reservation_seats_after_edit();
+CREATE FUNCTION public.check_workshop_reservation_seats_after_edit ()
+	RETURNS trigger
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	COST 100
+	AS $$DECLARE
+people INTEGER;
+BEGIN
+
+SELECT count(pawr.id) INTO people FROM "PeopleAndWorkshopReservation" pawr
+WHERE pawr."id_WorkshopReservation" = NEW.id;
+
+IF NEW.reserved_seats < people THEN
+  RAISE EXCEPTION 'Cannot resize workshop reservation. Too many people!';
+END IF;
+
+RETURN NEW;
+END;$$;
+-- ddl-end --
+
+-- object: check_seats_after_edit | type: TRIGGER --
+-- DROP TRIGGER check_seats_after_edit ON public."WorkshopReservation";
+CREATE TRIGGER check_seats_after_edit
+	AFTER UPDATE OF reserved_seats
+	ON public."WorkshopReservation"
+	FOR EACH ROW
+	EXECUTE PROCEDURE public.check_workshop_reservation_seats_after_edit();
+-- ddl-end --
+
+-- object: public.check_same_conf_day_as_workshop | type: FUNCTION --
+-- DROP FUNCTION public.check_same_conf_day_as_workshop();
+CREATE FUNCTION public.check_same_conf_day_as_workshop ()
+	RETURNS trigger
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	COST 100
+	AS $$BEGIN
+
+IF NOT EXISTS (
+  SELECT pawr.id FROM "Workshop" w 
+  INNER JOIN "WorkshopReservation" wr ON w.id=wr."id_Workshop" AND wr.id=NEW."id_WorkshopReservation"
+  INNER JOIN "PeopleAndWorkshopReservation" pawr ON pawr."id_WorkshopReservation"=wr.id
+  INNER JOIN "PeopleAndConfReservation" pacr ON pawr."id_PeopleAndConfReservation"=pacr.id
+  INNER JOIN "ConfDayReservation" cdr ON cdr.id=pacr."id_ConfDayReservation"
+  INNER JOIN "ConfDay" cd ON cd.id=cdr."id_ConfDay"
+  WHERE cd.date = w.start_time::date;
+  
+  ) THEN
+    RAISE EXCEPTION 'Person is not on same ConfDay';
+END IF;
+
+RETURN NEW;
+END;$$;
+-- ddl-end --
+
+-- object: check_same_conf_day | type: TRIGGER --
+-- DROP TRIGGER check_same_conf_day ON public."PeopleAndWorkshopReservation";
+CREATE TRIGGER check_same_conf_day
+	BEFORE INSERT OR UPDATE
+	ON public."PeopleAndWorkshopReservation"
+	FOR EACH ROW
+	EXECUTE PROCEDURE public.check_same_conf_day_as_workshop();
+-- ddl-end --
+
+-- object: public.check_conf_day_seats_after_edit | type: FUNCTION --
+-- DROP FUNCTION public.check_conf_day_seats_after_edit();
+CREATE FUNCTION public.check_conf_day_seats_after_edit ()
+	RETURNS trigger
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	COST 100
+	AS $$DECLARE
+sum_reserved_seats INTEGER;
+BEGIN
+
+SELECT sum(reserved_seats) INTO sum_reserved_seats FROM "ConfDayReservation"
+WHERE "id_ConfDay"=NEW.id;
+
+IF sum_reserved_seats > NEW.seats
+  RAISE EXCEPTION 'Cannot resize ConfDay, too many reserved seats!';
+END IF;
+
+RETURN NEW;
+END;$$;
+-- ddl-end --
+
+-- object: check_seats_after_edit | type: TRIGGER --
+-- DROP TRIGGER check_seats_after_edit ON public."ConfDay";
+CREATE TRIGGER check_seats_after_edit
+	AFTER UPDATE OF seats
+	ON public."ConfDay"
+	FOR EACH ROW
+	EXECUTE PROCEDURE public.check_conf_day_seats_after_edit();
+-- ddl-end --
+
+-- object: public.check_workshop_seats_after_edit | type: FUNCTION --
+-- DROP FUNCTION public.check_workshop_seats_after_edit();
+CREATE FUNCTION public.check_workshop_seats_after_edit ()
+	RETURNS trigger
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	COST 100
+	AS $$DECLARE
+sum_reserved_seats INTEGER;
+BEGIN
+
+SELECT sum(reserved_seats) INTO sum_reserved_seats FROM "WorkshopReservation"
+WHERE "id_Workshop"=NEW.id;
+
+IF sum_reserved_seats > NEW.seats
+  RAISE EXCEPTION 'Cannot resize Workshop, too many reserved seats!';
+END IF;
+
+RETURN NEW;
+END;$$;
+-- ddl-end --
+
+-- object: check_seats_after_edit | type: TRIGGER --
+-- DROP TRIGGER check_seats_after_edit ON public."Workshop";
+CREATE TRIGGER check_seats_after_edit
+	AFTER UPDATE OF seats
+	ON public."Workshop"
+	FOR EACH STATEMENT
+	EXECUTE PROCEDURE public.check_workshop_seats_after_edit();
+-- ddl-end --
+
+-- object: public.check_payment_full_or_too_many | type: FUNCTION --
+-- DROP FUNCTION public.check_payment_full_or_too_many();
+CREATE FUNCTION public.check_payment_full_or_too_many ()
+	RETURNS trigger
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	COST 100
+	AS $$DECLARE
+price_sum NUMERIC;
+payments_sum NUMERIC;
+BEGIN
+
+price_sum = sum_price_for_conf_reservation(NEW."id_ConfReservation");
+
+SELECT sum(value) INTO payments_sum FROM "Payments"
+WHERE "id_ConfReservation"=NEW."id_ConfReservation";
+
+IF price_sum < payments_sum THEN
+  RAISE EXCEPTION 'Too much money!';
+END IF;
+
+END;$$;
+-- ddl-end --
+
+-- object: check_payment_full_or_too_many | type: TRIGGER --
+-- DROP TRIGGER check_payment_full_or_too_many ON public."Payments";
+CREATE TRIGGER check_payment_full_or_too_many
+	AFTER INSERT OR UPDATE
+	ON public."Payments"
+	FOR EACH ROW
+	EXECUTE PROCEDURE public.check_payment_full_or_too_many();
 -- ddl-end --
 
 
