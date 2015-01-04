@@ -1,3 +1,5 @@
+```SQL
+
 -- Database generated with pgModeler (PostgreSQL Database Modeler).
 -- pgModeler  version: 0.8.0-alpha2
 -- PostgreSQL version: 9.4
@@ -1280,3 +1282,4 @@ SELECT sum_price_for_conf_reservation(1);
 SELECT list_people_on_conf_day(1);
 ---
 
+```
