@@ -46,10 +46,10 @@ CREATE TABLE public."Conference"(
 	name varchar(30) NOT NULL,
 	start_date date NOT NULL,
 	end_date date NOT NULL,
-	discount numeric DEFAULT 0,
+	discount numeric NOT NULL DEFAULT 0,
 	street varchar NOT NULL,
 	city varchar NOT NULL,
-	canceled boolean DEFAULT false,
+	canceled boolean NOT NULL DEFAULT false,
 	CONSTRAINT "pk_Conference" PRIMARY KEY (id),
 	CONSTRAINT check_discount CHECK ((0<=discount AND discount<=1)),
 	CONSTRAINT check_date CHECK (start_date<=end_date AND start_date>=CURRENT_DATE)
@@ -89,12 +89,12 @@ CREATE TABLE public."Price"(
 -- DROP TABLE public."Workshop";
 CREATE TABLE public."Workshop"(
 	id serial NOT NULL,
-	name varchar,
+	name varchar NOT NULL,
 	start_time timestamp NOT NULL,
 	end_time timestamp NOT NULL,
 	seats integer NOT NULL,
 	price numeric NOT NULL,
-	canceled boolean DEFAULT false,
+	canceled boolean NOT NULL DEFAULT false,
 	"id_ConfDay" integer NOT NULL,
 	CONSTRAINT "pk_Workshop" PRIMARY KEY (id),
 	CONSTRAINT positive_seats CHECK (seats > 0),
@@ -136,7 +136,7 @@ CREATE TABLE public."Payments"(
 -- DROP TABLE public."ConfReservation";
 CREATE TABLE public."ConfReservation"(
 	id serial NOT NULL,
-	canceled boolean DEFAULT false,
+	canceled boolean NOT NULL DEFAULT false,
 	"id_User" integer NOT NULL,
 	CONSTRAINT "id_ConfReservation" PRIMARY KEY (id)
 
@@ -155,7 +155,7 @@ ON DELETE RESTRICT ON UPDATE CASCADE;
 CREATE TABLE public."WorkshopReservation"(
 	id serial NOT NULL,
 	reserved_seats integer NOT NULL,
-	canceled boolean DEFAULT false,
+	canceled boolean NOT NULL DEFAULT false,
 	"id_Workshop" integer NOT NULL,
 	"id_ConfDayReservation" integer NOT NULL,
 	CONSTRAINT "id_WorkshopReservation" PRIMARY KEY (id),
@@ -194,7 +194,7 @@ CREATE TABLE public."ConfDayReservation"(
 	"id_ConfReservation" integer NOT NULL,
 	"id_ConfDay" integer NOT NULL,
 	reserved_seats integer NOT NULL,
-	reservation_date date DEFAULT CURRENT_DATE,
+	reservation_date date NOT NULL DEFAULT CURRENT_DATE,
 	CONSTRAINT "pkCRandCD" PRIMARY KEY (id),
 	CONSTRAINT positive_seats CHECK ("reserved_seats" > 0)
 
