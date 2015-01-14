@@ -47,8 +47,7 @@ class Conference:
             splitted = content.split('|')
             dict['name'] = splitted[0]
             dict['start_date'] = splitted[1]
-            dict['end_date'] = '\'' + splitted[1] + '\' + \'' + splitted[4] + '\'' #need to test
-            print(dict['end_date'])
+            dict['end_date'] = splitted[4] #need to test
             dict['discount'] = splitted[5]
             dict['street'] = splitted[2]
             dict['city'] = splitted[3]
@@ -100,7 +99,7 @@ except:
 
 try:
     cur.executemany(
-        """SELECT add_conference(%(name)s, %(start_date)s, %(end_date)s, %(discount)s, %(street)s, %(city)s, %(seats)s, %(price)s)""",
+        "SELECT add_conference(%(name)s, %(start_date)s, date %(start_date)s + integer %(end_date)s, %(discount)s, %(street)s, %(city)s, %(seats)s, %(price)s)",
         Conference().list())
     conn.commit()
 except:
