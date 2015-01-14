@@ -1,5 +1,6 @@
 import psycopg2
 import random
+import traceback
 
 class Company:
     def list(self):
@@ -31,9 +32,9 @@ class Users:
             dict['telephone'] = splitted[2]
             dict['street'] = splitted[3]
             dict['city'] = splitted[4]
-            dict['login'] = splitted[5]
+            dict['login'] = splitted[7]
             dict['email'] = splitted[6]
-            dict['password'] = splitted[7]
+            dict['password'] = splitted[5]
             list.append(dict)
         return list
 
@@ -46,7 +47,8 @@ class Conference:
             splitted = content.split('|')
             dict['name'] = splitted[0]
             dict['start_date'] = splitted[1]
-            dict['end_date'] = splitted[1] + ' + ' + splitted[4] #need to test
+            dict['end_date'] = '\'' + splitted[1] + '\' + \'' + splitted[4] + '\'' #need to test
+            print(dict['end_date'])
             dict['discount'] = splitted[5]
             dict['street'] = splitted[2]
             dict['city'] = splitted[3]
@@ -76,19 +78,34 @@ except:
     exit()
 
 cur = conn.cursor()
-print(Company().list())
-cur.executemany(
-    """SELECT add_user(true, %(name)s,NULL, NULL, %(telephone)s, %(street)s, %(city)s, %(login)s, %(email)s, %(password)s )""",
-    Company().list())
+cur.execute("""set datestyle = 'ISO, DMY';""")
 
-cur.executemany(
-    """SELECT add_user(false, NULL,%(first_name)s, %(sur_name)s, %(telephone)s, %(street)s, %(city)s, %(login)s, %(email)s, %(password)s )""",
-    Users().list())
+try:
+    cur.executemany(
+        """SELECT add_user(true, %(name)s,NULL, NULL, %(telephone)s, %(street)s, %(city)s, %(login)s, %(email)s, %(password)s )""",
+        Company().list())
+    conn.commit()
+except:
+    print("Pomijam Company")
+    print(traceback.print_exc())
 
-cur.executemany(
-    """SELECT add_conference(%(name)s, %(start_date)s, %(end_date)s, %(discount)s, %(street)s, %(city)s, %(seats)s, %(price)s)""",
-    Conference().list())
+try:
+    cur.executemany(
+        """SELECT add_user(false, NULL,%(first_name)s, %(sur_name)s, %(telephone)s, %(street)s, %(city)s, %(login)s, %(email)s, %(password)s )""",
+        Users().list())
+    conn.commit()
+except:
+    print("Pomijam users")
+    print(traceback.print_exc())
 
+try:
+    cur.executemany(
+        """SELECT add_conference(%(name)s, %(start_date)s, %(end_date)s, %(discount)s, %(street)s, %(city)s, %(seats)s, %(price)s)""",
+        Conference().list())
+    conn.commit()
+except:
+    print("Pomijam Conference")
+    print(traceback.print_exc())
 
 conn.commit()
 cur.close()
