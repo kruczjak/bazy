@@ -55,6 +55,19 @@ class Conference:
             list.append(dict)
         return list
 
+class Workshops:
+    def list(self):
+        list=[]
+        f = open("data/workshop.csv")
+        dict = {}
+        for content in f.readlines():
+            dict = {}
+            splitted = content.split('|')
+            dict['name'] = splitted[0]
+            dict['start_time'] = splitted[1]
+            list.append(dict)
+        return list
+
 # MAIN PROGRAM
 try:
     conn = psycopg2.connect("dbname=konferencje user=postgres")
