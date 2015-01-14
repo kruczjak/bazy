@@ -57,7 +57,7 @@ class Conference:
         return list
 
 class Workshops:
-    def list(self):
+    def list(self, confdaylist):
         list=[]
         f = open("data/workshop.csv")
         dict = {}
@@ -66,6 +66,7 @@ class Workshops:
             splitted = content.split('|')
             dict['name'] = splitted[0]
             dict['start_time'] = splitted[1]
+
             list.append(dict)
         return list
 
@@ -104,6 +105,19 @@ try:
     conn.commit()
 except:
     print("Pomijam Conference")
+    print(traceback.print_exc())
+
+conn.commit()
+
+cur.execute("""SELECT * FROM \"ConfDay\"""")
+list = cur.fetchall()
+print(list)
+try:
+    cur.executemany(
+        """SELECT add_workshop(%(id_ConfDay)s, %(name)s, %(start_time)s, %(end_time)s, %(seats)s, %(price)s)""",
+        Workshops().list(list))
+except:
+    print("Pomijam Workshop")
     print(traceback.print_exc())
 
 conn.commit()
