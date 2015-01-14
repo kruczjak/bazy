@@ -1,5 +1,5 @@
 import psycopg2
-
+import random
 
 class Company:
     def list(self):
@@ -22,8 +22,8 @@ class Company:
 class Users:
     def list(self):
         list = []
-        with open("data/user.csv") as f:
-            content = f.readline()
+        f = open("data/user.csv")
+        for content in f.readlines():
             dict = {}
             splitted = content.split('|')
             dict['first_name'] = splitted[0]
@@ -34,6 +34,24 @@ class Users:
             dict['login'] = splitted[5]
             dict['email'] = splitted[6]
             dict['password'] = splitted[7]
+            list.append(dict)
+        return list
+
+class Conference:
+    def list(self):
+        list = []
+        f = open("data/conference.csv")
+        for content in f.readlines():
+            dict = {}
+            splitted = content.split('|')
+            dict['name'] = splitted[0]
+            dict['start_date'] = splitted[1]
+            dict['end_date'] = splitted[1] + ' + ' + splitted[4] #need to test
+            dict['discount'] = splitted[5]
+            dict['street'] = splitted[2]
+            dict['city'] = splitted[3]
+            dict['seats'] = splitted[6]
+            dict['price'] = splitted[7]
             list.append(dict)
         return list
 
@@ -53,6 +71,11 @@ cur.executemany(
 cur.executemany(
     """SELECT add_user(false, NULL,%(first_name)s, %(sur_name)s, %(telephone)s, %(street)s, %(city)s, %(login)s, %(email)s, %(password)s )""",
     Users().list())
+
+cur.executemany(
+    """SELECT add_conference(%(name)s, %(start_date)s, %(end_date)s, %(discount)s, %(street)s, %(city)s, %(seats)s, %(price)s)""",
+    Conference().list())
+
 
 conn.commit()
 cur.close()
