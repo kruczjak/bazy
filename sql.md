@@ -23,14 +23,14 @@ SET check_function_bodies = false;
 CREATE TABLE public."User"(
 	id serial NOT NULL,
 	company boolean DEFAULT false,
-	name varchar(30),
-	first_name varchar(30),
-	sur_name varchar(30),
+	name varchar,
+	first_name varchar,
+	sur_name varchar,
 	telephone varchar NOT NULL,
 	street varchar NOT NULL,
 	city varchar NOT NULL,
-	login varchar(30) NOT NULL,
-	email varchar(40) NOT NULL,
+	login varchar NOT NULL,
+	email varchar NOT NULL,
 	password varchar NOT NULL,
 	CONSTRAINT "pk_User" PRIMARY KEY (id),
 	CONSTRAINT unique_login UNIQUE (login),
@@ -44,7 +44,7 @@ NOT NULL))
 -- DROP TABLE public."Conference";
 CREATE TABLE public."Conference"(
 	id serial NOT NULL,
-	name varchar(30) NOT NULL,
+	name varchar NOT NULL,
 	start_date date NOT NULL,
 	end_date date NOT NULL,
 	discount numeric NOT NULL DEFAULT 0,
@@ -108,8 +108,8 @@ CREATE TABLE public."Workshop"(
 -- DROP TABLE public."People";
 CREATE TABLE public."People"(
 	id serial NOT NULL,
-	first_name varchar(30) NOT NULL,
-	sur_name varchar(30) NOT NULL,
+	first_name varchar NOT NULL,
+	sur_name varchar NOT NULL,
 	CONSTRAINT "pk_People" PRIMARY KEY (id)
 
 );
@@ -332,7 +332,7 @@ WHERE company=true;
 -- object: public.view_not_companies | type: VIEW --
 -- DROP VIEW public.view_not_companies;
 CREATE VIEW public.view_not_companies
-AS SELECT id, first_name || ' ' ||sur_name, login, email FROM "User"
+AS SELECT id, first_name || ' ' ||sur_name "Name", login, email FROM "User"
 WHERE company=false;
 -- ddl-end --
 
@@ -365,7 +365,7 @@ INTO id_Conference;
 days = (end_date-start_date);
 i = 0;
 
-WHILE i<days LOOP
+WHILE i<=days LOOP
   INSERT INTO "ConfDay"(seats,date,"id_Conference") 
   VALUES(seats,start_date+i,id_Conference) RETURNING id INTO id_ConfDay;
    
@@ -423,16 +423,19 @@ COMMENT ON FUNCTION public.add_price(integer,date,numeric) IS 'Adds price valid 
 -- ddl-end --
 
 -- object: public.add_workshop | type: FUNCTION --
--- DROP FUNCTION public.add_workshop(integer,varchar,time,time,integer,numeric);
-CREATE FUNCTION public.add_workshop ( "id_ConfDay" integer,  name varchar,  start_time time,  end_time time,  seats integer,  price numeric)
+-- DROP FUNCTION public.add_workshop(integer,varchar,timestamp,timestamp,integer,numeric);
+CREATE FUNCTION public.add_workshop ( id_conf_day integer,  name varchar,  start_time timestamp,  end_time timestamp,  seats integer,  price 
+numeric)
 	RETURNS void
 	LANGUAGE plpgsql
 	VOLATILE 
 	CALLED ON NULL INPUT
 	SECURITY INVOKER
 	COST 100
-	AS $$INSERT INTO "Workshop"(name,start_time,end_time,seats,price,"id_ConfDay") 
-VALUES(name,start_time,end_time,seats,price,id_ConfDay);$$;
+	AS $$BEGIN
+INSERT INTO "Workshop"(name,start_time,end_time,seats,price,"id_ConfDay") 
+VALUES(name,start_time,end_time,seats,price,id_conf_day);
+END;$$;
 -- ddl-end --
 
 -- object: "ConfDayReservation_fk" | type: CONSTRAINT --
@@ -516,8 +519,8 @@ END$$;
 -- ddl-end --
 
 -- object: public.reserve_workshop | type: FUNCTION --
--- DROP FUNCTION public.reserve_workshop(integer,smallint,integer);
-CREATE FUNCTION public.reserve_workshop ( id_conf_day_reservation integer,  id_workshop smallint,  reserved_seats integer)
+-- DROP FUNCTION public.reserve_workshop(integer,integer,integer);
+CREATE FUNCTION public.reserve_workshop ( id_conf_day_reservation integer,  id_workshop integer,  reserved_seats integer)
 	RETURNS void
 	LANGUAGE plpgsql
 	VOLATILE 
@@ -675,15 +678,13 @@ CREATE FUNCTION public.get_sum_price_for_workshop_reservation ( id_workshop_rese
 	SECURITY INVOKER
 	COST 100
 	AS $$DECLARE
-number_of_people INTEGER;
 price NUMERIC;
 BEGIN
-SELECT count(pawr.id) INTO number_of_people FROM "PeopleAndWorkshopReservation" pawr
-INNER JOIN "WorkshopReservation" wr ON wr.id=pawr."id_WorkshopReservation" AND wr.id=id_workshop_reservation;
 
-SELECT w.price INTO price FROM "WorkshopReservation" wr INNER JOIN "Workshop" w ON wr."id_Workshop"=w.id AND wr.id=id_workshop_reservation;
+SELECT w.price*wr.reserved_seats INTO price FROM "WorkshopReservation" wr INNER JOIN "Workshop" w ON wr."id_Workshop"=w.id AND 
+wr.id=id_workshop_reservation;
 
-RETURN (number_of_people * price);
+RETURN price;
 END$$;
 -- ddl-end --
 
@@ -732,14 +733,11 @@ CREATE FUNCTION public.sum_price_for_conf_reservation ( id_conf_reservation inte
 	COST 100
 	AS $$DECLARE
 sum NUMERIC;
-partial_sum NUMERIC;
-cdr_r RECORD;
 BEGIN
-sum=0.0;
 
-FOR cdr_r IN SELECT id FROM "ConfDayReservation" cdr WHERE cdr."id_ConfReservation"=id_conf_reservation LOOP
-  sum = sum + get_sum_conf_day_reservation(cdr_r.id);
-END LOOP;
+SELECT SUM(get_sum_conf_day_reservation(id)) INTO sum 
+FROM "ConfDayReservation"
+WHERE "id_ConfReservation"=id_conf_reservation;
 
 RETURN sum;
 END$$;
@@ -756,12 +754,10 @@ CREATE FUNCTION public.get_sum_conf_day_reservation ( id_conf_day_reservation in
 	COST 100
 	AS $$DECLARE
 c_d_reservation RECORD;
-workshop_reservation RECORD;
 price_and_discount public.price_and_discount;
-partial_sum NUMERIC;
+reserved_students INTEGER;
 sum NUMERIC;
 BEGIN
-sum=0.0;
 
 SELECT * INTO c_d_reservation FROM "ConfDayReservation" cdr
 WHERE cdr.id=id_conf_day_reservation;
@@ -770,19 +766,18 @@ WHERE cdr.id=id_conf_day_reservation;
 price_and_discount = get_price_and_discount_from_conf_day(c_d_reservation."id_ConfDay",c_d_reservation.reservation_date);
 
 --price of workshops
-FOR workshop_reservation IN SELECT wr.id FROM "WorkshopReservation" wr WHERE wr."id_ConfDayReservation"=c_d_reservation.id LOOP
-  sum = sum + get_sum_price_for_workshop_reservation(workshop_reservation.id);
-END LOOP;
-
---price for conferences for not students
-SELECT count(pacr.id)*price_and_discount.price INTO partial_sum FROM "PeopleAndConfReservation" pacr
-INNER JOIN "ConfDayReservation" cdr ON cdr.id=pacr."id_ConfDayReservation" AND pacr.student_card IS NULL;
-sum = sum + partial_sum;
+SELECT SUM(get_sum_price_for_workshop_reservation(wr.id)) INTO sum
+FROM "WorkshopReservation" wr 
+WHERE wr."id_ConfDayReservation"=c_d_reservation.id;
 
 --price for conferences for students
-SELECT count(pacr.id)*price_and_discount.price*(1-price_and_discount.discount) INTO partial_sum FROM "PeopleAndConfReservation" pacr
-INNER JOIN "ConfDayReservation" cdr ON cdr.id=pacr."id_ConfDayReservation" AND pacr.student_card IS NOT NULL;
-sum = sum + partial_sum;
+SELECT count(pacr.id) INTO reserved_students 
+FROM "PeopleAndConfReservation" pacr
+INNER JOIN "ConfDayReservation" cdr ON cdr.id=pacr."id_ConfDayReservation" AND pacr.student_card IS NOT NULL
+WHERE cdr.id=id_conf_day_reservation;
+
+sum = COALESCE(sum, 0.0) + (c_d_reservation.reserved_seats-reserved_students)*price_and_discount.price + 
+reserved_students*price_and_discount.price*(1 - price_and_discount.discount);
 
 RETURN sum;
 END$$;
@@ -883,7 +878,7 @@ BEGIN
 SELECT w.seats INTO available_seats FROM "Workshop" w
 WHERE w.id = NEW."id_Workshop";
 
-SELECT sum(wr.reserved_seats) INTO res_seats FROM "WorkshopReservation" cdr
+SELECT sum(wr.reserved_seats) INTO res_seats FROM "WorkshopReservation" wr
 WHERE wr."id_Workshop" = NEW."id_Workshop";
 
 IF res_seats > available_seats THEN
@@ -1247,26 +1242,27 @@ END;$$;
 -- object: public.view_not_yet_paid | type: VIEW --
 -- DROP VIEW public.view_not_yet_paid;
 CREATE VIEW public.view_not_yet_paid
-AS SELECT u.id as "UserID", cr.id as "ConfReservationID", sum_price_for_conf_reservation(cr.id) as "ToPay", COALESCE(SUM(p.value),0) as "Paid"
+AS SELECT u.id "UserID", u.company, u.name, u.first_name, u.sur_name, u.telephone, u.email, cr.id as "ConfReservationID", 
+sum_price_for_conf_reservation(cr.id) "ToPay", COALESCE(SUM(p.value),0) "Paid"
 FROM "User" u
 INNER JOIN "ConfReservation" cr ON cr."id_User"=u.id
 LEFT JOIN "Payments" p ON p."id_ConfReservation"=cr.id
 WHERE cr.canceled=false
 GROUP BY u.id, cr.id
-HAVING sum_price_for_conf_reservation(cr.id)>sum(p.value);
+HAVING sum_price_for_conf_reservation(cr.id)>COALESCE(sum(p.value), 0);
 -- ddl-end --
 
 -- object: public.view_best_clients | type: VIEW --
 -- DROP VIEW public.view_best_clients;
 CREATE VIEW public.view_best_clients
-AS SELECT u.id, u.company, u.name, u.first_name, u.sur_name, u.login, u.email
+AS SELECT u.id, u.company, u.name, u.first_name, u.sur_name, u.login, u.email, COALESCE(sum(p.value),0) "Paid"
 FROM "User" u
 INNER JOIN "ConfReservation" cr ON cr."id_User"=u.id
-INNER JOIN "ConfDayReservation" cdr ON cdr."id_ConfReservation"=cr.id
-WHERE cr.canceled=false AND u.company=false
+LEFT JOIN "Payments" p ON p."id_ConfReservation"=cr.id
+WHERE cr.canceled=false
 GROUP BY u.id
-ORDER BY sum(cdr.reserved_seats) DESC
-LIMIT 10;
+ORDER BY "Paid" DESC
+LIMIT 100;
 -- ddl-end --
 
 -- object: public.view_conf_with_missing_people | type: VIEW --
@@ -1396,7 +1392,8 @@ CREATE TRIGGER check_cancel_conf_reservation
 -- object: public.view_available_conferences | type: VIEW --
 -- DROP VIEW public.view_available_conferences;
 CREATE VIEW public.view_available_conferences
-AS SELECT c.id "ConferenceID", c.name, c.start_date, c.end_date, c.street, c.city, cd.id "ConfDayID", cd.seats, cd.date  
+AS SELECT c.id "ConferenceID", c.name, c.start_date "Conference start", c.end_date "Conference end", c.street, c.city, cd.id "ConfDayID", 
+cd.seats, cd.date "ConfDay date"
 FROM "Conference" c
 INNER JOIN "ConfDay" cd ON c.id=cd."id_Conference"
 WHERE c.canceled!=true AND start_date > CURRENT_DATE;;
@@ -1481,23 +1478,135 @@ ALTER TABLE public."Price" ADD CONSTRAINT unique_date_and_conf_day UNIQUE (date,
 -- ddl-end --
 
 
+-- object: public.week_before_cancel_not_paid | type: FUNCTION --
+-- DROP FUNCTION public.week_before_cancel_not_paid();
+CREATE FUNCTION public.week_before_cancel_not_paid ()
+	RETURNS void
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	COST 100
+	AS $$DECLARE
+r RECORD;
+paid NUMERIC;
+BEGIN
 
--- Appended SQL commands --
-SELECT add_conference('Taka tam', CURRENT_DATE, CURRENT_DATE+1, 0.5, 'street', 'city', 300, 3);
---SELECT insert_conference('Taka tam2', CURRENT_DATE-5, CURRENT_DATE-3, 0);
-SELECT add_conference('Taka tam3', CURRENT_DATE+20, CURRENT_DATE+30, 0.7, 'street1', 'city1', 40, 2.50);
---SELECT insert_conference('Taka tam4', CURRENT_DATE+50, CURRENT_DATE+39, 0);
-SELECT add_conference('Taka tam5', CURRENT_DATE, CURRENT_DATE+1, 0, 'street2', 'city2', 50);
---SELECT insert_conference('Taka tam6', CURRENT_DATE, CURRENT_DATE+1, 0, true);
-SELECT add_user(false,null,'Paulina','Lach','123123', 'ulica','miasto','smig','mail@smig.me','password');
-SELECT add_user(true,'SM',null,null,'2222222', 'ulica1','miasto1','smigfirm','mail1@smig.me','password1');
---SELECT insert_user(true,null,null,null,'smigfirm','mail1@smig.me','password1');
---SELECT insert_user(false,'SM',null,null,'smigfirm','mail1@smig.me','password1');
---SELECT add_price(1,CURRENT_DATE-1,20.2);
-SELECT create_confreservation(1,1,250);
-SELECT connect_person_to_conference('Jakub', 'Kruczek', 1,1);
-SELECT sum_price_for_conf_reservation(1);
-SELECT list_people_on_conf_day(1);
----
+FOR r IN
+  SELECT cr.id FROM "ConfReservation" cr 
+  WHERE cr.canceled!=true AND CURRENT_DATE-7 > (
+    SELECT MIN(cdr.reservation_date) FROM "ConfDayReservation" cdr
+    WHERE cdr."id_ConfReservation" = cr.id;
+  );
+LOOP
+
+  SELECT sum(value) INTO paid FROM "Payments"
+  WHERE "id_ConfReservation" = r.id;
+
+  IF paid < sum_price_for_conf_reservation(r.id) THEN
+    UPDATE SET canceled=true WHERE id = r.id;
+  END IF;
+
+END LOOP;
+
+END;$$;
+-- ddl-end --
+
+-- object: public.check_reservation_seats_in_confday_greater_than_wr | type: FUNCTION --
+-- DROP FUNCTION public.check_reservation_seats_in_confday_greater_than_wr();
+CREATE FUNCTION public.check_reservation_seats_in_confday_greater_than_wr ()
+	RETURNS trigger
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	COST 100
+	AS $$BEGIN
+
+IF NOT EXISTS (
+  SELECT id FROM "ConfDayReservation"
+  WHERE id = NEW."id_ConfDayReservation" AND reserved_seats >= NEW.reserved_seats
+) THEN
+  RAISE EXCEPTION 'More reserved_seats than max people number';
+END IF;
+
+RETURN NEW;
+END;$$;
+-- ddl-end --
+
+-- object: reserved_seats_smaller_than_in_cdr | type: TRIGGER --
+-- DROP TRIGGER reserved_seats_smaller_than_in_cdr ON public."WorkshopReservation";
+CREATE TRIGGER reserved_seats_smaller_than_in_cdr
+	BEFORE INSERT OR UPDATE OF reserved_seats
+	ON public."WorkshopReservation"
+	FOR EACH ROW
+	EXECUTE PROCEDURE public.check_reservation_seats_in_confday_greater_than_wr();
+-- ddl-end --
+
+-- object: public.check_cancel_conference | type: FUNCTION --
+-- DROP FUNCTION public.check_cancel_conference();
+CREATE FUNCTION public.check_cancel_conference ()
+	RETURNS trigger
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	COST 1
+	AS $$BEGIN
+
+UPDATE "ConfReservation" SET canceled=true 
+WHERE id in (
+  SELECT cdr."id_ConfReservation"
+  FROM "ConfDay" cd
+  INNER JOIN "ConfDayReservation" cdr ON cdr."id_ConfDay" = cd.id
+  WHERE cd."id_Conference" = NEW.id
+);
+
+UPDATE "Workshop" SET canceled=true
+WHERE id in (
+  SELECT w.id
+  FROM "ConfDay" cd
+  INNER JOIN "Workshop" w ON cd.id = w."id_ConfDay"
+  WHERE cd."id_Conference" = NEW.id
+);
+
+END;$$;
+-- ddl-end --
+
+-- object: cancel_conference | type: TRIGGER --
+-- DROP TRIGGER cancel_conference ON public."Conference";
+CREATE TRIGGER cancel_conference
+	AFTER INSERT OR UPDATE OF canceled
+	ON public."Conference"
+	FOR EACH ROW
+	EXECUTE PROCEDURE public.check_cancel_conference();
+-- ddl-end --
+
+-- object: public.check_cancel_workshop | type: FUNCTION --
+-- DROP FUNCTION public.check_cancel_workshop();
+CREATE FUNCTION public.check_cancel_workshop ()
+	RETURNS trigger
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	COST 100
+	AS $$BEGIN 
+
+UPDATE "WorkshopReservation" SET canceled=true
+WHERE "id_Workshop" = NEW.id;
+
+END;$$;
+-- ddl-end --
+
+-- object: cancel_workshop | type: TRIGGER --
+-- DROP TRIGGER cancel_workshop ON public."Workshop";
+CREATE TRIGGER cancel_workshop
+	AFTER INSERT OR UPDATE OF canceled
+	ON public."Workshop"
+	FOR EACH ROW
+	EXECUTE PROCEDURE public.check_cancel_workshop();
+-- ddl-end --
+
 
 ```
