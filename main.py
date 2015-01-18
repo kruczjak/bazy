@@ -103,8 +103,24 @@ class People:
                 else:
                     dict['student_card']=None
                 list.append(dict)
+            if row[0] > len(cdr)/4:
+                break
         return list
 
+class WorkshopReservations:
+    def list(self, cdr):
+        list=[]
+        for row in cdr:
+            dict = {}
+            dict['id_workshop'] = row[0]
+            dict['id_cdr'] = row[2]
+            dict['reserved_seats'] = int(row[1]/20)
+            list.append(dict)
+        return list
+class PeopleToWorkshopReservations:
+    def list(self, ptc):
+        list = []
+        # for row in
 # MAIN PROGRAM
 try:
     conn = psycopg2.connect("dbname=konferencje user=postgres")
@@ -114,7 +130,7 @@ except:
 
 cur = conn.cursor()
 cur.execute("""set datestyle = 'ISO, DMY';""")
-
+# USERS (Company)
 try:
     cur.executemany(
         """SELECT add_user(true, %(name)s,NULL, NULL, %(telephone)s, %(street)s, %(city)s, %(login)s, %(email)s, %(password)s )""",
@@ -123,7 +139,7 @@ try:
 except:
     print("Pomijam Company")
     print(traceback.print_exc())
-
+# Users
 try:
     cur.executemany(
         """SELECT add_user(false, NULL,%(first_name)s, %(sur_name)s, %(telephone)s, %(street)s, %(city)s, %(login)s, %(email)s, %(password)s )""",
@@ -132,7 +148,7 @@ try:
 except:
     print("Pomijam users")
     print(traceback.print_exc())
-
+# Conferences + ConfDays
 try:
     cur.executemany(
         "SELECT add_conference(%(name)s, %(start_date)s, date %(start_date)s + integer %(end_date)s, %(discount)s, %(street)s, %(city)s, %(seats)s, %(price)s)",
@@ -143,7 +159,7 @@ except:
     print(traceback.print_exc())
 
 conn.commit()
-
+# Workshops
 cur.execute("""SELECT * FROM \"ConfDay\"""")
 list = cur.fetchall()
 try:
@@ -154,7 +170,7 @@ try:
 except:
     print("Pomijam Workshop")
     print(traceback.print_exc())
-
+# ConfReservations + ConfDayReservations
 try:
     cur.executemany(
         """SELECT create_confreservation(%(id_User)s, %(id_ConfDay)s, %(reserved_seats)s)""",
@@ -164,7 +180,7 @@ try:
 except:
     print("Pomijam Confreservation")
     print(traceback.print_exc())
-
+# People to ConfDayReservations
 cur.execute("""SELECT * FROM \"ConfDayReservation\"""")
 cdr = cur.fetchall()
 try:
@@ -176,7 +192,33 @@ try:
 except:
     print("Pomijam People")
     print(traceback.print_exc())
+print("next")
+# WorkshopReservations
+cur.execute("""SELECT DISTINCT w.id, w.seats, cdr.id, cdr.reserved_seats
+FROM \"ConfDay\" cd
+INNER JOIN \"Workshop\" w ON w.\"id_ConfDay\" = cd.id
+INNER JOIN \"ConfDayReservation\" cdr ON cd.id = cdr.\"id_ConfDay\"""")
+cdAndWorkshop = cur.fetchall()
+try:
+    cur.executemany(
+        """SELECT reserve_workshop(%(id_cdr)s, %(id_workshop)s, %(reserved_seats)s)""",
+        WorkshopReservations().list(cdAndWorkshop)
+    )
+except:
+    print("Pomijam WorkshopReservation")
+    print(traceback.print_exc())
 
+# cur.execute("""SELECT * FROM \"PeopleAndConfReservation\"""")
+# ptc = cur.fetchall()
+# try:
+#     cur.executemany(
+#         """SELECT connect_person_to_workshop(%(id_ptc)s, %(id_wr))""",
+#         PeopleToWorkshopReservations().list(ptc)
+#     )
+#     conn.commit()
+# except:
+#     print("Pomijam People to Workshop")
+#     print(traceback.print_exc())
 
 conn.commit()
 cur.close()
