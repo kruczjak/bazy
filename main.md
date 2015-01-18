@@ -1,3 +1,4 @@
+```python
 import psycopg2
 import random
 import traceback
@@ -212,3 +213,4 @@ except:
 conn.commit()
 cur.close()
 conn.close()
+```
