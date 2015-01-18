@@ -1608,5 +1608,50 @@ CREATE TRIGGER cancel_workshop
 	EXECUTE PROCEDURE public.check_cancel_workshop();
 -- ddl-end --
 
+-- object: public.free_seats_workshop | type: FUNCTION --
+-- DROP FUNCTION public.free_seats_workshop(integer);
+CREATE FUNCTION public.free_seats_workshop ( id_workshop integer)
+	RETURNS integer
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	COST 100
+	AS $$DECLARE
+seats INTEGER;
+BEGIN 
+
+SELECT w.seats - COALESCE(SUM(wr.reserved_seats), 0) INTO seats
+FROM "Workshop" w
+INNER JOIN "WorkshopReservation" wr ON w.id=wr."id_Workshop"
+WHERE w.id=id_workshop
+GROUP BY w.id;
+
+RETURN seats;
+END;$$;
+-- ddl-end --
+
+-- object: public.free_seats_conf_day | type: FUNCTION --
+-- DROP FUNCTION public.free_seats_conf_day(integer);
+CREATE FUNCTION public.free_seats_conf_day ( id_confday integer)
+	RETURNS integer
+	LANGUAGE plpgsql
+	VOLATILE 
+	CALLED ON NULL INPUT
+	SECURITY INVOKER
+	COST 100
+	AS $$DECLARE
+seats INTEGER;
+BEGIN
+
+SELECT cd.seats - COALESCE(SUM(cdr.reserved_seats))
+FROM "ConfDay" cd
+INNER JOIN "ConfDayReservation" cdr ON cdr."id_ConfDay"=cd.id
+WHERE cd.id=id_confday;
+
+RETURN seats;
+END;$$;
+-- ddl-end --
+
 
 ```
